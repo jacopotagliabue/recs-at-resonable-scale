@@ -1,0 +1,22 @@
+name: 'h_m_merlin_playground'
+version: '1.0.0'
+
+config-version: 2
+profile: 'nvidia-snowflake'
+source-paths: ["models"]
+analysis-paths: ["analysis"]
+test-paths: ["tests"]
+data-paths: ["data"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target" 
+clean-targets: 
+  - "target"
+  - "dbt_modules"
+
+models:
+  h_m_merlin_playground:
+    # Applies to all files under models/metaflow/
+    metaflow:
+      materialized: table
