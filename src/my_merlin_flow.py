@@ -13,11 +13,10 @@ Please check the README and the additional material for the relevant background 
 
 """
 
-from metaflow import FlowSpec, step, batch, S3, Parameter, current, Run, environment, card
+from metaflow import FlowSpec, step, batch, S3, Parameter, current, Run, environment
 from custom_decorators import enable_decorator, pip
 import os
 import json
-import time
 from datetime import datetime
 
 
@@ -72,7 +71,7 @@ class merlinFlow(FlowSpec):
     DYNAMO_TABLE = Parameter(
         name='dynamo_table',
         help='Name of dynamo db table to store the pre-computed recs. Default is same as in the serverless application',
-        default='h_and_m_table'
+        default='userItemTable'
     )
 
     @step
@@ -163,6 +162,8 @@ class merlinFlow(FlowSpec):
         # fetch raw dataset
         dataset = sf_client.fetch_all(query, debug=True)
         assert dataset
+        # convert the classical SNOWFLAKE upper case COLS to lower case (Keras does complain downstream othewise)
+        dataset = [{ k.lower(): v for k, v in row.items() } for row in dataset]
         # we split by time window, using the dates specified as parameters
         train_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] < self.training_end_date])
         validation_dataset = pt.from_pylist([row for row in dataset 
@@ -238,7 +239,7 @@ class merlinFlow(FlowSpec):
         from comet_ml import Experiment
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
-        from merlin.models.utils.dataset import unique_rows_by_features
+        import merlin.models.tf.dataset as tf_dataloader
         from merlin.schema.tags import Tags
         from dataset_utils import get_dataset_folders
         # this is the CURRENT hyper param JSON in the fan-out
@@ -288,9 +289,12 @@ class merlinFlow(FlowSpec):
         topk_rec_model = self.get_items_topk_recommender_model(
             train, train.schema, model, k=25
         )
+        test_dataset = tf_dataloader.BatchedDataset(
+            test, batch_size=1024, shuffle=False,
+        )
         # then, we predict on the test set
-        predictions = topk_rec_model.predict(train)
-        print(len(predictions))
+        predictions = topk_rec_model.predict(test_dataset)
+        print(predictions.shape)
         # #TODO: decide how to best serialize the model in a MF variable
         self.model_path = '' # upload model to s3
         self.next(self.join_runs)

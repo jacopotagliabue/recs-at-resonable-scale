@@ -15,26 +15,26 @@ def get_nvt_workflow():
     import numpy as np
     import nvtabular as nvt
 
-    user_id = ["customer_id".upper()] >> ops.Categorify() >> ops.AddMetadata(tags=["user_id", "user"]) 
+    user_id = ["customer_id"] >> ops.Categorify() >> ops.AddMetadata(tags=["user_id", "user"]) 
     user_features = [
-        "FN".upper(),
-        "Active".upper(),
-        "club_member_status".upper(),
-        "fashion_news_frequency".upper(),        
-        "postal_code".upper()] >> ops.Categorify() >> ops.AddMetadata(tags=["user"])
+        "FN",
+        "Active",
+        "club_member_status",
+        "fashion_news_frequency",        
+        "postal_code"] >> ops.Categorify() >> ops.AddMetadata(tags=["user"])
     
     age_boundaries = list(np.arange(0,100,5))
-    user_age = ["age".upper()] >> ops.FillMissing(0) >> ops.Bucketize(age_boundaries) >> ops.Categorify() >> ops.AddMetadata(tags=["user"])
+    user_age = ["age"] >> ops.FillMissing(0) >> ops.Bucketize(age_boundaries) >> ops.Categorify() >> ops.AddMetadata(tags=["user"])
     user_features = user_features + user_age
     
     purchase_month = (
-        ["t_dat".upper()] >> 
+        ["t_dat"] >> 
         ops.LambdaOp(lambda col: col.dt.month) >> 
         ops.Rename(name ='purchase_month')
     )
     
     purchase_year = (
-        ["t_dat".upper()] >> 
+        ["t_dat"] >> 
         ops.LambdaOp(lambda col: col.dt.year) >> 
         ops.Rename(name ='purchase_year')
     )
@@ -43,23 +43,23 @@ def get_nvt_workflow():
         (purchase_month + purchase_year) >> ops.Categorify() >>  ops.AddMetadata(tags=["user"])     
     )
         
-    item_id = ["article_id".upper()] >> ops.Categorify() >> ops.AddMetadata(tags=["item_id", "item"]) 
-    item_features = ["product_code".upper(), 
-            "product_type_no".upper(), 
-            "product_group_name".upper(), 
-            "graphical_appearance_no".upper(),
-            "colour_group_code".upper(),
-            "perceived_colour_value_id".upper(),
-            "perceived_colour_master_id".upper(),
-            "department_no".upper(),
-            "index_code".upper(),
-            "index_group_no".upper(),
-            "section_no".upper(),
-            "garment_group_no".upper()] >> ops.Categorify() >>  ops.AddMetadata(tags=["item"]) 
+    item_id = ["article_id"] >> ops.Categorify() >> ops.AddMetadata(tags=["item_id", "item"]) 
+    item_features = ["product_code", 
+            "product_type_no", 
+            "product_group_name", 
+            "graphical_appearance_no",
+            "colour_group_code",
+            "perceived_colour_value_id",
+            "perceived_colour_master_id",
+            "department_no",
+            "index_code",
+            "index_group_no",
+            "section_no",
+            "garment_group_no"] >> ops.Categorify() >>  ops.AddMetadata(tags=["item"]) 
     
     item_avg_price = (
         item_id >> ops.JoinGroupby(
-            cont_cols=["price".upper()],
+            cont_cols=["price"],
             stats=["mean"]
         ) >>
         ops.FillMissing(0) >>
