@@ -5,7 +5,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 *July 2022*: this is a WIP, come back often for updates, a blog post and my NVIDIA talk (FORTHCOMING)!
 
-_This_ project is a collaboration with the Comet, Outerbounds, NVIDIA Merlin teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
+_This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/) and [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
 *TL;DR: (after setup) a single ML person is able to train a cutting edge deep learning model (actually, several versions of it in parallel), test it and deploy it without any explicit infrastructure work, without talking to any DevOps person, without using anything that is not Python or SQL.*
 
@@ -40,20 +40,20 @@ The code is a self-contained recommender project; however, since we leverage bes
 
 _The basics: Metaflow, Snowflake and dbt_
 
-A Snowflake account is needed to host the data, and a working Metaflow + dbt setup is needed to run the flow:
+A Snowflake account is needed to host the data, and a working Metaflow setup is needed to run the flow on AWS GPUs if you wish to do so:
 
 * _Snowflake account_: [sign-up for a free trial](https://signup.snowflake.com).
 * _AWS account_: [sign-up for a free AWS account](https://aws.amazon.com/free/).
-* _Metaflow on AWS_: [follow the setup guide](https://docs.metaflow.org/metaflow-on-aws).
+* _Metaflow on AWS_: [follow the setup guide](https://docs.metaflow.org/metaflow-on-aws) - _in theory_ the pipeline should work also with a local setup (i.e. no additional setup after installing the `requirements`), if you don't need cloud computing / versioning etc. _However_, we strongly recommend a fully [AWS-compatible setup](https://docs.metaflow.org/metaflow-on-aws); 
 * _dbt core setup_: on top of installing the package in `requirements.txt`, you need to properly configure your [dbt_profile](https://docs.getdbt.com/dbt-cli/configure-your-profile).
-
-_Adding PaaS deployment_
-
-* _AWS Lambda setup_: _TBC_
 
 _Adding experiment tracking_
 
 * _Comet ML_: [sign-up for free](https://www.comet.ml/signup) and get an api key. If you don't want experiment tracking, make sure to comment out the Comet specific parts in the `train_model` step.
+
+_Adding PaaS deployment_
+
+* _AWS Lambda setup_: if the env `SAVE_TO_CACHE` is set to `1`, the Metaflow pipeline will try and cache in dynamoDB recommendations for the users in the test set. Those recommendations can be served through an endpont using AWS Lambda. If you wish to serve your recommendation, you need to run the serverless project in the `serverless` folder _before_ running the flow: the project will create _both_ a target DynamoDB table and a working GET endpoint. To do so: first, install the [serverless framework](https://www.serverless.com/framework/) and connect it with your [AWS](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/); second, cd into the `serverless` folder, and run `AWS_PROFILE=tooso serverless deploy` (where `AWS_PROFILE` selects a specific AWS config with permission to run the framework, and can be omitted if you use your default). If all goes well, the CLI will create the relevant resources and print out the URL for your public rec API, e.g. `endpoint: GET - https://xafacoa313.execute-api.us-west-2.amazonaws.com/dev/itemRecs`: you can verifiy the endpoint is working by pasting the URL in the browser (response will be empty as you need to run the flow to populate dynamoDB). Make sure the region of deployment in the `serverless.yml` file is the same as the one in the Metaflow pipeline. Note that while we use the _serverless_ framework for convenience, the same setup can be done manually, if preferred.
 
 _A note on containers_
 
@@ -65,7 +65,7 @@ and slightly changed the entry point to work with Metaflow. The `docker` folder 
 
 ## Setup
 
-We recommend using python 3.8 for this project
+We recommend using python 3.8 for this project.
 
 ### Virtual env
 
@@ -86,7 +86,7 @@ Inside `src`, create a version of the `local.env` file named only `.env` (do _no
 | SF_ACCOUNT | string  |  Snowflake account  |
 | SF_DB | string |  Snowflake database  |
 | SF_ROLE | string |  Snowflake role to run SQL |
-| EN_BATCH | 0-1 (1)  | Enable cloud computing for Metaflow |
+| EN_BATCH | 0-1 (0)  | Enable cloud computing for Metaflow |
 | COMET_API_KEY | string  | Comet ML api key  |
 | SAVE_TO_CACHE | 0-1 (0)  | Enable storing predictions to an external cache for serving. If 1, you need to deploy the AWS Lambda (see above) before running the flow  |
 
@@ -123,18 +123,17 @@ Once the above setup steps are completed, you can run the flow:
 * cd into the `src` folder;
 * run the flow with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py --package-suffixes ".py" run --max-workers 4`, where `METAFLOW_PROFILE` is needed to select a specific Metaflow config (you can omit it, if you're using the default), `AWS_PROFILE` is needed to select a specific AWS config that runs the flow and it's related AWS infrastructure (you can omit it, if you're using the default), and `AWS_DEFAULT_REGION` is needed to specify the target AWS region (you can omit it, if you've it already specified in your local AWS PROFILE and you do not wish to change it).
 
-_TBC_
-
 ### Results
 
-If you run the flow with the recommended setup, you will end up with:
+If you run the flow with the full setup, you will end up with:
 
 * versioned datasets and model artifacts, accessible through the standard [Metaflow client API](https://docs.metaflow.org/metaflow/client);
 * a Comet dashboard for experiment tracking of the deep learning model, displaying training stats;
-* finally, a DL-based recommender system serving batched predictions in real-time using AWS Lambda for inference.
+* finally, a DL-based recommender system serving batched predictions in real-time using AWS Lambda and DynamoDB.
 
 ### TODOs
 
+* make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas, Metaflow with local store vs remote
 * more use cases
 * better testing
 
@@ -148,13 +147,17 @@ _TBC_
 
 * _What if my datasets are not static to begin with, but depends on real interactions?_ We open-sourced a [serverless pipeline](https://github.com/jacopotagliabue/paas-data-ingestion) that show how data ingestion could work.
 
+* _I want to add tool X, replace Y with Z: how modular is this pipeline?_
+
 _TBC_
 
 ## Acknowledgements
 
 Contributors:
 
-* [Jacopo Tagliabue](https://www.linkedin.com/in/jacopotagliabue/), general design, Metaflow fan boy, prototype.
+* [Jacopo](https://www.linkedin.com/in/jacopotagliabue/), general design, Metaflow fan boy, prototype;
+* the Outerbounds team, in particular [Hamel](https://www.linkedin.com/in/hamelhusain/) for Metaflow guidance, [Valay](https://www.linkedin.com/in/valay-dave-a3588596/) for AWS Batch support;
+* the NVIDIA Merlin team, in particular [Gabriel](https://www.linkedin.com/in/gabrielspmoreira/), [Even](https://www.linkedin.com/in/even-oldridge/), [Ben](https://www.linkedin.com/in/ben-frederickson/) and [Ronay](https://www.linkedin.com/in/ronay-ak/).
 
 _TBC_
 

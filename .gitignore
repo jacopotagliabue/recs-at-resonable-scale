@@ -151,3 +151,4 @@ metaflow.s3*/
 
 train/
 valid/
+test/

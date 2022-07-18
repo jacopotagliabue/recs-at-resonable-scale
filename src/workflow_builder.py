@@ -1,3 +1,15 @@
+from pyarrow import Table
+
+def read_to_dataframe(
+    dataset: Table,
+    label: str # follows naming convention train,valid,test
+    ):
+    import pandas as pd
+    from pyarrow.parquet import write_table
+    write_table(dataset, '{}.parquet'.format(label))
+    return pd.read_parquet('{}.parquet'.format(label))
+    
+
 def get_nvt_workflow():
     import nvtabular.ops as ops
     import numpy as np

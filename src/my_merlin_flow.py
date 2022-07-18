@@ -48,6 +48,12 @@ class merlinFlow(FlowSpec):
         default='recall_at_10'
     )
 
+    N_EPOCHS = Parameter(
+        name='n_epoch',
+        help='Number of epochs to train the Merlin model',
+        default='1' # default to 1 for quick testing
+    )
+
     #NOTE: data parameters - we split by time, leaving the last two weeks for validation and tests
     # The first date in the table is 2018-09-20
     # The last date in the table is 2020-09-22
@@ -63,6 +69,12 @@ class merlinFlow(FlowSpec):
         default='2020-09-15'
     )
 
+    DYNAMO_TABLE = Parameter(
+        name='dynamo_table',
+        help='Name of dynamo db table to store the pre-computed recs. Default is same as in the serverless application',
+        default='h_and_m_table'
+    )
+
     @step
     def start(self):
         """
@@ -74,7 +86,9 @@ class merlinFlow(FlowSpec):
         print("username: %s" % current.username)
         if os.environ.get('EN_BATCH', '0') == '1':
             print("ATTENTION: AWS BATCH ENABLED!") 
-        print(os.getenv('AWS_DEFAULT_REGION'))
+        data_store = os.environ.get('METAFLOW_DATASTORE_SYSROOT_S3', None)
+        if data_store is None:
+            print("ATTENTION: LOCAL DATASTORE ENABLED")
         # check variables and connections are working fine
         assert os.environ['COMET_API_KEY'] and self.COMET_PROJECT_NAME
         assert int(self.ROW_SAMPLING)
@@ -146,58 +160,57 @@ class merlinFlow(FlowSpec):
                 T_DAT ASC
         """.format(sampling_expression)
         print("Fetching rows with query: \n {} \n\nIt may take a while...\n".format(query))
-        # fetch and snapshot raw dataset
+        # fetch raw dataset
         dataset = sf_client.fetch_all(query, debug=True)
         assert dataset
         # we split by time window, using the dates specified as parameters
-        # version also the train / test split and print some quick number
-        self.train_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] < self.training_end_date])
-        self.validation_dataset = pt.from_pylist([row for row in dataset 
+        train_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] < self.training_end_date])
+        validation_dataset = pt.from_pylist([row for row in dataset 
             if row['T_DAT'] >= self.training_end_date and row['T_DAT'] < self.validation_end_date])
-        self.test_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] >= self.validation_end_date])
+        test_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] >= self.validation_end_date])
         print("# {:,} events in the training set, {:,} for validation, {:,} for test".format(
-            len(self.train_dataset),
-            len(self.validation_dataset),
-            len(self.test_dataset)
+            len(train_dataset),
+            len(validation_dataset),
+            len(test_dataset)
         ))
+        # store and version datasets as a map label -> datasets, for consist processing later on
+        self.label_to_dataset = {
+            'train': train_dataset,
+            'valid': validation_dataset,
+            'test': test_dataset
+        }
         # go to the next step for NV tabular data
         self.next(self.build_workflow)
     
     @step
     def build_workflow(self):
-        from pyarrow.parquet import write_table
-        from workflow_builder import get_nvt_workflow # pylint: disable=import-error
+        from workflow_builder import get_nvt_workflow, read_to_dataframe # pylint: disable=import-error
+        import pandas as pd
         # TODO: find a way to execute dask_cudf when possible and pandas when not
         # import dask as dask, dask_cudf  # pylint: disable=import-error
         import nvtabular as nvt # pylint: disable=import-error
-        import pandas as pd
         from dataset_utils import upload_dataset_folders
-        # prepare workflow 
-        print("Dumping frames to parquet")
-        write_table(self.train_dataset, 'train.parquet')
-        write_table(self.validation_dataset, 'valid.parquet')
-        write_table(self.test_dataset, 'test.parquet')
-        print("Done with parquet!")
-        train_df = pd.read_parquet('train.parquet')
-        valid_df = pd.read_parquet('valid.parquet')
-        test_df = pd.read_parquet('test.parquet')
-        full_dataset = nvt.Dataset(pd.concat([train_df, valid_df, test_df]))
+        # read dataset into frames
+        label_to_df = {}
+        for label, dataset in self.label_to_dataset.items():
+            label_to_df[label] = read_to_dataframe(dataset, label)
+        full_dataset = nvt.Dataset(pd.concat(list(label_to_df.values())))
         # get the workflow and fit the dataset
         workflow = get_nvt_workflow()
         workflow.fit(full_dataset)
-        train_dataset = nvt.Dataset(train_df)
-        workflow.transform(train_dataset).to_parquet(output_path="train/")
-        valid_dataset = nvt.Dataset(valid_df)
-        workflow.transform(valid_dataset).to_parquet(output_path="valid/")
+        for label, _df in label_to_df.items():
+            cnt_dataset = nvt.Dataset(_df)
+            workflow.transform(cnt_dataset).to_parquet(output_path="{}/".format(label))
         # version the two folders prepared by NV tabular as tar files on s3
-        s3_metaflow_client = S3(run=self)
-        self.folders_to_s3_file = upload_dataset_folders(
-            s3_client=s3_metaflow_client,
-            folders=["train", "valid"]
-            )
+        # if the remote datastore is not enabled
+        if os.environ.get('METAFLOW_DATASTORE_SYSROOT_S3', None) is not None:
+            s3_metaflow_client = S3(run=self)
+            self.folders_to_s3_file = upload_dataset_folders(
+                s3_client=s3_metaflow_client,
+                folders=list(self.label_to_dataset.items())
+                )
         # sets of hypers - we serialize them to a string and pass them to the foreach below
         self.hypers_sets = [json.dumps(_) for _ in [
-            { 'BATCH_SIZE': 16384 },
             { 'BATCH_SIZE': 1024 }
         ]]
         self.next(self.train_model, foreach='hypers_sets')
@@ -222,19 +235,23 @@ class merlinFlow(FlowSpec):
         # each copy of this step in the parallelization will have its own value
         self.hyper_string = self.input
         self.hypers = json.loads(self.hyper_string)
-        s3_metaflow_client = S3(run=self)
-        target_folder = 'merlin/'
-        # download dataset folders from s3
-        self.local_paths = get_dataset_folders(
-            s3_client=s3_metaflow_client,
-            folders_to_s3_file=self.folders_to_s3_file,
-            target_folder=target_folder
-        )
+        target_folder = ''
+        # read datasets folder from s3 if datastore is not local
+        if os.environ.get('METAFLOW_DATASTORE_SYSROOT_S3', None) is not None:
+            s3_metaflow_client = S3(run=self)
+            target_folder = 'merlin/' 
+            self.local_paths = get_dataset_folders(
+                s3_client=s3_metaflow_client,
+                folders_to_s3_file=self.folders_to_s3_file,
+                target_folder=target_folder
+            )
         train = Dataset('{}train/*.parquet'.format(target_folder))
         valid = Dataset('{}valid/*.parquet'.format(target_folder))
-        print("Train dataset shape: {}, Validation: {}".format(
+        test = Dataset('{}test/*.parquet'.format(target_folder))
+        print("Train dataset shape: {}, Validation: {}, Test: {}".format(
             train.to_ddf().compute().shape,
-            valid.to_ddf().compute().shape
+            valid.to_ddf().compute().shape,
+            test.to_ddf().compute().shape
             ))
         # linking task to experiment
         experiment = Experiment(
@@ -251,12 +268,12 @@ class merlinFlow(FlowSpec):
             embedding_options=mm.EmbeddingOptions(infer_embedding_sizes=True),
         )
         model.compile(optimizer="adam", run_eagerly=False, metrics=[mm.RecallAt(10), mm.NDCGAt(10)])
-        model.fit(train, validation_data=valid, batch_size=self.hypers['BATCH_SIZE'], epochs=1)
+        model.fit(train, validation_data=valid, batch_size=self.hypers['BATCH_SIZE'], epochs=int(self.N_EPOCHS))
         # test the model on validation set and store the results in a MF variable
         self.metrics = model.evaluate(valid, batch_size=1024, return_dict=True)
         print("\n\n====> Eval results: {}\n\n".format(self.metrics))
         experiment.end()
-        # serialize the model in a MF variable
+        # #TODO: decide how to best serialize the model in a MF variable
         self.model_path = '' # upload model to s3
         self.next(self.join_runs)
 
@@ -276,7 +293,7 @@ class merlinFlow(FlowSpec):
             self.model_paths[self.best_model]
             ))
         # next, deploy
-        self.next(self.cache_predictions)
+        self.next(self.model_testing)
 
     @step
     def model_testing(self):
@@ -300,6 +317,17 @@ class merlinFlow(FlowSpec):
             print("Skipping deployment")
         else:
             print("Caching predictions in DynamoDB")
+            import boto3
+            dynamodb = boto3.resource('dynamodb')
+            table = dynamodb.Table(self.DYNAMO_TABLE)
+            # upload some static items as a test
+            data = [
+                { 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(3)])}
+            ]
+            with table.batch_writer() as writer:
+                for item in data:
+                    writer.put_item(Item=item)
+            print("Predictions are all cached in DynamoDB")
 
         self.next(self.end)
 

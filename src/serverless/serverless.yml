@@ -1,0 +1,49 @@
+frameworkVersion: "3"
+
+service: user-item-recs-with-dynamo
+useDotenv: true
+
+provider:
+  name: aws
+  runtime: python3.8
+  stage: dev
+  region: us-west-2
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+      Resource:
+        - "Fn::GetAtt": [userItemTable, Arn]
+  environment:
+    TABLE_NAME:
+      Ref: userItemTable
+
+functions:
+  user_to_item_recs:
+    handler: handler.user_to_item_recs
+    memorySize: 1024
+    timeout: 5
+    events:
+      - http:
+          path: /itemRecs
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    userItemTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: userItemTable
+        AttributeDefinitions:
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: userId
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
