@@ -17,8 +17,8 @@ def get_nvt_workflow():
 
     user_id = ["customer_id"] >> ops.Categorify() >> ops.AddMetadata(tags=["user_id", "user"]) 
     user_features = [
-        "FN",
-        "Active",
+        "fn",
+        "active",
         "club_member_status",
         "fashion_news_frequency",        
         "postal_code"] >> ops.Categorify() >> ops.AddMetadata(tags=["user"])

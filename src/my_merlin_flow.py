@@ -162,13 +162,14 @@ class merlinFlow(FlowSpec):
         # fetch raw dataset
         dataset = sf_client.fetch_all(query, debug=True)
         assert dataset
-        # convert the classical SNOWFLAKE upper case COLS to lower case (Keras does complain downstream othewise)
+        # convert the classical SNOWFLAKE upper case COLS to lower case (Keras does complain downstream otherwise)
+        # TODO: should probably this in Snowflake directly ;-)
         dataset = [{ k.lower(): v for k, v in row.items() } for row in dataset]
         # we split by time window, using the dates specified as parameters
-        train_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] < self.training_end_date])
+        train_dataset = pt.from_pylist([row for row in dataset if row['t_dat'] < self.training_end_date])
         validation_dataset = pt.from_pylist([row for row in dataset 
-            if row['T_DAT'] >= self.training_end_date and row['T_DAT'] < self.validation_end_date])
-        test_dataset = pt.from_pylist([row for row in dataset if row['T_DAT'] >= self.validation_end_date])
+            if row['t_dat'] >= self.training_end_date and row['t_dat'] < self.validation_end_date])
+        test_dataset = pt.from_pylist([row for row in dataset if row['t_dat'] >= self.validation_end_date])
         print("# {:,} events in the training set, {:,} for validation, {:,} for test".format(
             len(train_dataset),
             len(validation_dataset),
@@ -220,7 +221,7 @@ class merlinFlow(FlowSpec):
         from merlin.io.dataset import Dataset 
         from merlin.schema.tags import Tags
         item_features = schema.select_by_tag(Tags.ITEM).column_names
-        item_dataset = train_dataset.to_ddf()[item_features].drop_duplicates(subset=['ARTICLE_ID'], keep='last').compute()
+        item_dataset = train_dataset.to_ddf()[item_features].drop_duplicates(subset=['article_id'], keep='last').compute()
         item_dataset = Dataset(item_dataset)
         return model.to_top_k_recommender(item_dataset, k=k)
 
@@ -234,7 +235,12 @@ class merlinFlow(FlowSpec):
     @step
     def train_model(self):
         """
-        Train models in parallel and store KPIs and path for downstream consumption
+        Train models in parallel and store KPIs and path for downstream consumption.
+
+        Note: we are now running predictions for all models in parallel over our target set of shoppers (the ones
+        in our test set). This is wasteful, as we should run predictions only for the winning model, after we run
+        behavioral tests that confirm the model quality - for now, we sidestep the issue of serializing Merlin model
+        and restore it by running all predictions and pick downstream the one from the best model.
         """
         from comet_ml import Experiment
         import merlin.models.tf as mm
@@ -287,15 +293,16 @@ class merlinFlow(FlowSpec):
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
         topk_rec_model = self.get_items_topk_recommender_model(
-            train, train.schema, model, k=25
+            train, train.schema, model, k=3
         )
         test_dataset = tf_dataloader.BatchedDataset(
             test, batch_size=1024, shuffle=False,
         )
         # then, we predict on the test set
-        predictions = topk_rec_model.predict(test_dataset)
-        print(predictions.shape)
-        # #TODO: decide how to best serialize the model in a MF variable
+        self.predictions = topk_rec_model.predict(test_dataset)[1]
+        print(self.predictions.shape)
+        # TODO: join predictions with item IDs and user IDs
+        # TODO: decide how to best serialize the model in a MF variable
         self.model_path = '' # upload model to s3
         self.next(self.join_runs)
 
@@ -305,11 +312,14 @@ class merlinFlow(FlowSpec):
         Join the parallel runs and merge results into a dictionary.
         """
         # merge results from runs with different parameters (key is hyper settings as a string)
+        # and collect the predictions made by the different versions
         self.model_paths = { inp.hyper_string: inp.model_path for inp in inputs}
         self.results_from_runs = { inp.hyper_string: inp.metrics[self.VALIDATION_METRIC] for inp in inputs}
+        self.all_predictions = { inp.hyper_string: inp.predictions for inp in inputs}
         print("Current results: {}".format(self.results_from_runs))
          # pick one according to some logic, e.g. higher VALIDATION_METRIC
         self.best_model, self_best_result = sorted(self.results_from_runs.items(), key=lambda x: x[1], reverse=True)[0]
+        self.best_predictions = self.all_predictions[self.best_model]
         print("Best model is: {}, path is {}".format(
             self.best_model,
             self.model_paths[self.best_model]
@@ -333,6 +343,9 @@ class merlinFlow(FlowSpec):
         Use DynamoDb as a cache and a Lambda (in the serverless folder, check the README)
         to serve pre-computed predictions in a PaaS/FaaS manner.
 
+        Note (see train_model above): we are just storing the predictions for the winning model, as 
+        computed in the training step.
+
         """
         # skip the deployment if not needed
         if not bool(int(os.getenv('SAVE_TO_CACHE'))):
@@ -343,9 +356,12 @@ class merlinFlow(FlowSpec):
             dynamodb = boto3.resource('dynamodb')
             table = dynamodb.Table(self.DYNAMO_TABLE)
             # upload some static items as a test
-            data = [
-                { 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(3)])}
-            ]
+            data = []
+            # test user first
+            data.append({ 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(3)])})
+            # loop over predictions and store them
+            for idx in range(len(self.best_predictions)):
+                data.append({ 'userId': f'user_{idx}', 'recs': json.dumps(self.best_predictions[idx].tolist()) })
             with table.batch_writer() as writer:
                 for item in data:
                     writer.put_item(Item=item)
