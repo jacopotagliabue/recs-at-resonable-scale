@@ -215,6 +215,14 @@ class merlinFlow(FlowSpec):
         ]]
         self.next(self.train_model, foreach='hypers_sets')
 
+    def get_items_topk_recommender_model(self, train_dataset, schema, model, k):
+        from merlin.io.dataset import Dataset 
+        from merlin.schema.tags import Tags
+        item_features = schema.select_by_tag(Tags.ITEM).column_names
+        item_dataset = train_dataset.to_ddf()[item_features].drop_duplicates(subset=['ARTICLE_ID'], keep='last').compute()
+        item_dataset = Dataset(item_dataset)
+        return model.to_top_k_recommender(item_dataset, k=k)
+
     @environment(vars={
                     'EN_BATCH': os.getenv('EN_BATCH'),
                     'COMET_API_KEY': os.getenv('COMET_API_KEY')
@@ -230,6 +238,8 @@ class merlinFlow(FlowSpec):
         from comet_ml import Experiment
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
+        from merlin.models.utils.dataset import unique_rows_by_features
+        from merlin.schema.tags import Tags
         from dataset_utils import get_dataset_folders
         # this is the CURRENT hyper param JSON in the fan-out
         # each copy of this step in the parallelization will have its own value
@@ -265,7 +275,7 @@ class merlinFlow(FlowSpec):
             train.schema,
             query_tower=mm.MLPBlock([128, 64], no_activation_last_layer=True),
             samplers=[mm.InBatchSampler()],
-            embedding_options=mm.EmbeddingOptions(infer_embedding_sizes=True),
+            embedding_options=mm.EmbeddingOptions(infer_embedding_sizes=True)
         )
         model.compile(optimizer="adam", run_eagerly=False, metrics=[mm.RecallAt(10), mm.NDCGAt(10)])
         model.fit(train, validation_data=valid, batch_size=self.hypers['BATCH_SIZE'], epochs=int(self.N_EPOCHS))
@@ -273,6 +283,14 @@ class merlinFlow(FlowSpec):
         self.metrics = model.evaluate(valid, batch_size=1024, return_dict=True)
         print("\n\n====> Eval results: {}\n\n".format(self.metrics))
         experiment.end()
+        # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
+        # first, we provide train set as a corpus
+        topk_rec_model = self.get_items_topk_recommender_model(
+            train, train.schema, model, k=25
+        )
+        # then, we predict on the test set
+        predictions = topk_rec_model.predict(train)
+        print(len(predictions))
         # #TODO: decide how to best serialize the model in a MF variable
         self.model_path = '' # upload model to s3
         self.next(self.join_runs)

@@ -53,7 +53,7 @@ _Adding experiment tracking_
 
 _Adding PaaS deployment_
 
-* _AWS Lambda setup_: if the env `SAVE_TO_CACHE` is set to `1`, the Metaflow pipeline will try and cache in dynamoDB recommendations for the users in the test set. Those recommendations can be served through an endpont using AWS Lambda. If you wish to serve your recommendation, you need to run the serverless project in the `serverless` folder _before_ running the flow: the project will create _both_ a target DynamoDB table and a working GET endpoint. To do so: first, install the [serverless framework](https://www.serverless.com/framework/) and connect it with your [AWS](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/); second, cd into the `serverless` folder, and run `AWS_PROFILE=tooso serverless deploy` (where `AWS_PROFILE` selects a specific AWS config with permission to run the framework, and can be omitted if you use your default). If all goes well, the CLI will create the relevant resources and print out the URL for your public rec API, e.g. `endpoint: GET - https://xafacoa313.execute-api.us-west-2.amazonaws.com/dev/itemRecs`: you can verifiy the endpoint is working by pasting the URL in the browser (response will be empty as you need to run the flow to populate dynamoDB). Make sure the region of deployment in the `serverless.yml` file is the same as the one in the Metaflow pipeline. Note that while we use the _serverless_ framework for convenience, the same setup can be done manually, if preferred.
+* _AWS Lambda setup_: if the env `SAVE_TO_CACHE` is set to `1`, the Metaflow pipeline will try and cache in dynamoDB recommendations for the users in the test set. Those recommendations can be served through an endpont using AWS Lambda. If you wish to serve your recommendations, you need to run the serverless project in the `serverless` folder _before_ running the flow: the project will create _both_ a DynamoDB table and a working GET endpoint. To do so: first, install the [serverless framework](https://www.serverless.com/framework/) and connect it with your [AWS](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/); second, cd into the `serverless` folder, and run `AWS_PROFILE=tooso serverless deploy` (where `AWS_PROFILE` selects a specific AWS config with permission to run the framework, and can be omitted if you use your default). If all goes well, the CLI will create the relevant resources and print out the URL for your public rec API, e.g. `endpoint: GET - https://xafacoa313.execute-api.us-west-2.amazonaws.com/dev/itemRecs`: you can verifiy the endpoint is working by pasting the URL in the browser (response will be empty as you need to run the flow to populate dynamoDB). Make sure the region of deployment in the `serverless.yml` file is the same as the one in the Metaflow pipeline. Note that while we use the _serverless_ framework for convenience, the same setup can be done manually, if preferred.
 
 _A note on containers_
 
@@ -128,12 +128,13 @@ Once the above setup steps are completed, you can run the flow:
 If you run the flow with the full setup, you will end up with:
 
 * versioned datasets and model artifacts, accessible through the standard [Metaflow client API](https://docs.metaflow.org/metaflow/client);
-* a Comet dashboard for experiment tracking of the deep learning model, displaying training stats;
-* finally, a DL-based recommender system serving batched predictions in real-time using AWS Lambda and DynamoDB.
+* a Comet dashboard for experiment tracking of the deep learning model;
+* finally, a live, scalable endpoint serving batched predictions using AWS Lambda and DynamoDB.
 
 ### TODOs
 
-* make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas, Metaflow with local store vs remote
+* fix the current prediction bug
+* make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas
 * more use cases
 * better testing
 
@@ -145,9 +146,9 @@ _TBC_
 
 ## Q&A
 
-* _What if my datasets are not static to begin with, but depends on real interactions?_ We open-sourced a [serverless pipeline](https://github.com/jacopotagliabue/paas-data-ingestion) that show how data ingestion could work.
+* _What if my datasets are not static to begin with, but depends on real interactions?_ We open-sourced a [serverless pipeline](https://github.com/jacopotagliabue/paas-data-ingestion) that show how data ingestion could work with the same philosophical principles.
 
-* _I want to add tool X, replace Y with Z: how modular is this pipeline?_
+* _I want to add tool X, or replace Y with Z: how modular is this pipeline?_ Our aim is to present a pipeline simple enough to be quickly grasped, complex enough to sustain a real deep learning model and industry use case. That said, it is possible that what worked for us may not work as perfectly for you: e.g. you may wish to change experiment tracking (we showed an abstraction with [Neptune](https://neptune.ai/) [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat)), or use a different data warehouse solution (e.g. BigQuery), or orchestrate the entire thing in a different way (check again [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat) for a Prefect-based solution). We start by providing a flow that "just works", but our focus is on the functional pieces, not just the tools: what are the essential computations we need to run a modern recsys pipeline? If you find other tools are better for you, please go ahead - and let us know, feedback is always useful!
 
 _TBC_
 
@@ -157,7 +158,7 @@ Contributors:
 
 * [Jacopo](https://www.linkedin.com/in/jacopotagliabue/), general design, Metaflow fan boy, prototype;
 * the Outerbounds team, in particular [Hamel](https://www.linkedin.com/in/hamelhusain/) for Metaflow guidance, [Valay](https://www.linkedin.com/in/valay-dave-a3588596/) for AWS Batch support;
-* the NVIDIA Merlin team, in particular [Gabriel](https://www.linkedin.com/in/gabrielspmoreira/), [Even](https://www.linkedin.com/in/even-oldridge/), [Ben](https://www.linkedin.com/in/ben-frederickson/) and [Ronay](https://www.linkedin.com/in/ronay-ak/).
+* the NVIDIA Merlin team, in particular [Gabriel](https://www.linkedin.com/in/gabrielspmoreira/), [Even](https://www.linkedin.com/in/even-oldridge/), [Ronay](https://www.linkedin.com/in/ronay-ak/) and [Ben](https://www.linkedin.com/in/ben-frederickson/).
 
 _TBC_
 

@@ -1,6 +1,6 @@
 """
 
-Custom decorators for use with Metaflow
+Custom decorators for Metaflow
 
 """
 from functools import wraps

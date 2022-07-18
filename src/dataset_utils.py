@@ -1,6 +1,6 @@
 """
 
-Utility functions to deal with Merlin datasets in the flow.
+Utility functions to deal with Merlin datasets in the flow when Metaflow + AWS as datastore is used.
 
 """
 
