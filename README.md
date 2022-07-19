@@ -157,11 +157,15 @@ _TBC_
 
 ## Acknowledgements
 
-Contributors:
+Main Contributors:
 
 * [Jacopo](https://www.linkedin.com/in/jacopotagliabue/), general design, Metaflow fan boy, prototype;
 * the Outerbounds team, in particular [Hamel](https://www.linkedin.com/in/hamelhusain/) for Metaflow guidance, [Valay](https://www.linkedin.com/in/valay-dave-a3588596/) for AWS Batch support;
-* the NVIDIA Merlin team, in particular [Gabriel](https://www.linkedin.com/in/gabrielspmoreira/), [Even](https://www.linkedin.com/in/even-oldridge/), [Ronay](https://www.linkedin.com/in/ronay-ak/) and [Ben](https://www.linkedin.com/in/ben-frederickson/).
+* the NVIDIA Merlin team, in particular [Gabriel](https://www.linkedin.com/in/gabrielspmoreira/), [Ronay](https://www.linkedin.com/in/ronay-ak/), [Ben](https://www.linkedin.com/in/ben-frederickson/), [Even](https://www.linkedin.com/in/even-oldridge/).
+
+Special thanks:
+
+* [Dhruv Nair](https://www.linkedin.com/in/dhruvnair/) for double-checking our experiment tracking setup and suggesting improvements.
 
 ## License
 
