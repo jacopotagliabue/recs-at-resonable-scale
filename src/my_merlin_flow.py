@@ -223,19 +223,16 @@ class merlinFlow(FlowSpec):
                 s3_client=s3_metaflow_client,
                 folders=list(self.label_to_dataset.items())
                 )
+        # store the mapping Merlin ID -> article_id and Merlin ID -> customer_id
+        user_unique_ids = list(pd.read_parquet('categories/unique.customer_id.parquet')['customer_id'])
+        items_unique_ids = list(pd.read_parquet('categories/unique.article_id.parquet')['article_id'])
+        self.id_2_user_id = { idx:_ for idx, _ in enumerate(user_unique_ids) }
+        self.id_2_item_id = { idx:_ for idx, _ in enumerate(items_unique_ids) }
         # sets of hypers - we serialize them to a string and pass them to the foreach below
         self.hypers_sets = [json.dumps(_) for _ in [
             { 'BATCH_SIZE': 1024 }
         ]]
         self.next(self.train_model, foreach='hypers_sets')
-
-    def get_items_topk_recommender_model(self, train_dataset, schema, model, k):
-        from merlin.io.dataset import Dataset 
-        from merlin.schema.tags import Tags
-        item_features = schema.select_by_tag(Tags.ITEM).column_names
-        item_dataset = train_dataset.to_ddf()[item_features].drop_duplicates(subset=['article_id'], keep='last').compute()
-        item_dataset = Dataset(item_dataset)
-        return model.to_top_k_recommender(item_dataset, k=k)
 
     @environment(vars={
                     'EN_BATCH': os.getenv('EN_BATCH'),
@@ -255,6 +252,7 @@ class merlinFlow(FlowSpec):
         and restore it by running all predictions and pick downstream the one from the best model.
         """
         from comet_ml import Experiment
+        from model_utils import get_items_topk_recommender_model, serialize_model
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
         import merlin.models.tf.dataset as tf_dataloader
@@ -304,18 +302,30 @@ class merlinFlow(FlowSpec):
         experiment.end()
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
-        topk_rec_model = self.get_items_topk_recommender_model(
+        topk_rec_model = get_items_topk_recommender_model(
             train, train.schema, model, k=int(self.TOP_K)
         )
         test_dataset = tf_dataloader.BatchedDataset(
             test, batch_size=1024, shuffle=False,
         )
-        # then, we predict on the test set
-        self.predictions = topk_rec_model.predict(test_dataset)[1]
-        print(self.predictions.shape)
-        # TODO: join predictions with item IDs and user IDs
-        # TODO: decide how to best serialize the model in a MF variable
-        self.model_path = '' # upload model to s3
+        # predict returns a tuple with two elements, scores and product IDs: we get the IDs only
+        self.raw_predictions = topk_rec_model.predict(test_dataset)[1]
+        # check we have as many predictions as we have shoppers in the test set
+        n_rows = self.raw_predictions.shape[0]
+        self.target_shoppers = test_dataset.data.to_ddf().compute()['customer_id']
+        assert n_rows == len(self.target_shoppers)
+        # map predictions to a final dictionary, with the actual H and M IDs for users and products
+        self.h_m_shoppers = [str(self.id_2_user_id[_]) for _ in self.target_shoppers]
+        print(self.h_m_shoppers[:3])
+        sku_convert = lambda x: [str(self.id_2_item_id[_]) for _ in x]
+        self.predictions = {
+            self.h_m_shoppers[_]: sku_convert(self.raw_predictions[_].tolist()) for _ in range(n_rows)
+            }
+        print(self.predictions[self.h_m_shoppers[0]])
+        # debug
+        print(n_rows, len(self.predictions))
+        # serialize the model and store the MF path to it
+        self.model_path = serialize_model(model)
         self.next(self.join_runs)
 
     @step
@@ -368,12 +378,10 @@ class merlinFlow(FlowSpec):
             dynamodb = boto3.resource('dynamodb')
             table = dynamodb.Table(self.DYNAMO_TABLE)
             # upload some static items as a test
-            data = []
-            # test user first
-            data.append({ 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(3)])})
-            # loop over predictions and store them
-            for idx in range(len(self.best_predictions)):
-                data.append({ 'userId': f'user_{idx}', 'recs': json.dumps(self.best_predictions[idx].tolist()) })
+            data = [ { 'userId': user, 'recs': json.dumps(recs) } for user, recs in self.best_predictions.items()] 
+            # finally add test user
+            data.append({ 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(self.TOP_K)])})
+            # loop over predictions and store them in the table
             with table.batch_writer() as writer:
                 for item in data:
                     writer.put_item(Item=item)
