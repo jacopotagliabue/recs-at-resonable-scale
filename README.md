@@ -29,14 +29,14 @@ For an in-depth explanation of the philosophy behind the approach, please check 
 This project builds on our open roadmap for "MLOps at Resonable Scale", automated documentation of pipelines, rounded evaluation for RecSys:
 
 * _NEW_: Upcoming [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
+* [RecList (project website)](http://reclist.io/);
 * [You don't need a bigger boat (repo, paper, talk)](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat);
 * [Post-Modern Stack (repo)](https://github.com/jacopotagliabue/post-modern-stack);
-* [RecList (project website)](http://reclist.io/);
 * [DAG Cards are the new model cards (NeurIPS paper)](https://arxiv.org/abs/2110.13601).
 
 ## Pre-requisites
 
-The code is a self-contained recommender project; however, since we leverage best-in-class tools, some preliminary (one time) setup is required. Please make sure the requirements are satisfied, depending on what you wish to run and on what you are already using - roughly in order of ascending complexity:
+The code is a self-contained, end-to-end recommender project; however, since we leverage best-in-class tools, some preliminary (one time) setup is required. Please make sure the requirements are satisfied, depending on what you wish to run and on what you are already using - roughly in order of ascending complexity:
 
 _The basics: Metaflow, Snowflake and dbt_
 
@@ -44,7 +44,7 @@ A Snowflake account is needed to host the data, and a working Metaflow setup is 
 
 * _Snowflake account_: [sign-up for a free trial](https://signup.snowflake.com).
 * _AWS account_: [sign-up for a free AWS account](https://aws.amazon.com/free/).
-* _Metaflow on AWS_: [follow the setup guide](https://docs.metaflow.org/metaflow-on-aws) - _in theory_ the pipeline should work also with a local setup (i.e. no additional setup after installing the `requirements`), if you don't need cloud computing / versioning etc. _However_, we strongly recommend a fully [AWS-compatible setup](https://docs.metaflow.org/metaflow-on-aws); 
+* _Metaflow on AWS_: [follow the setup guide](https://docs.metaflow.org/metaflow-on-aws) - _in theory_ the pipeline should work also with a local setup (i.e. no additional work after installing the `requirements`), if you don't need cloud computing. _However_, we strongly recommend a fully [AWS-compatible setup](https://docs.metaflow.org/metaflow-on-aws); 
 * _dbt core setup_: on top of installing the package in `requirements.txt`, you need to properly configure your [dbt_profile](https://docs.getdbt.com/dbt-cli/configure-your-profile).
 
 _Adding experiment tracking_
@@ -105,14 +105,14 @@ Once you run the script, check your Snowflake for the new tables:
 
 After the data is loaded, we use dbt as our transformation tool of choice. While you can run dbt code as part of a Metaflow pipeline, we keep the dbt part separate in this project to simplify the runtime component: it will be trivial (as shown [here](https://github.com/jacopotagliabue/post-modern-stack) for example) to orchestrate the SQL code within Metaflow if you wish to do so. After the data is loaded in Snowflake:
 
-* `cd` into the `dbt` folder.
-* Run `dbt run`.
+* `cd` into the `dbt` folder;
+* run `dbt run`.
 
 Check your Snowflake for the new tables created by dbt:
 
 ![Dbt tables](/images/after_dbt.png)
 
-In particular, the table `"EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"` represents a dataframe in which user, article and transaction data are all joined together - the Metaflow pipeline will read directly from this table, leveraging the pre-processing done at scale through dbt and Snowflake.
+In particular, the table `"EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"` represents a dataframe in which user, article and transaction data are all joined together - the Metaflow pipeline will read from this table, leveraging the pre-processing done at scale through dbt and Snowflake.
 
 ## How to run the entire project
 
@@ -121,24 +121,27 @@ In particular, the table `"EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"` repre
 Once the above setup steps are completed, you can run the flow:
 
 * cd into the `src` folder;
-* run the flow with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py --package-suffixes ".py" run --max-workers 4`, where `METAFLOW_PROFILE` is needed to select a specific Metaflow config (you can omit it, if you're using the default), `AWS_PROFILE` is needed to select a specific AWS config that runs the flow and it's related AWS infrastructure (you can omit it, if you're using the default), and `AWS_DEFAULT_REGION` is needed to specify the target AWS region (you can omit it, if you've it already specified in your local AWS PROFILE and you do not wish to change it).
+* run the flow with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py --package-suffixes ".py" run –-with card --max-workers 4`, where `METAFLOW_PROFILE` is needed to select a specific Metaflow config (you can omit it, if you're using the default), `AWS_PROFILE` is needed to select a specific AWS config that runs the flow and it's related AWS infrastructure (you can omit it, if you're using the default), and `AWS_DEFAULT_REGION` is needed to specify the target AWS region (you can omit it, if you've it already specified in your local AWS PROFILE and you do not wish to change it).
+
+At the end of the flow, you can inspect the default [DAG Card](https://outerbounds.com/blog/integrating-pythonic-visual-reports-into-ml-pipelines/) with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py card view get_dataset`:
+
+![Metaflow card](/images/card.png)
 
 ### Results
 
 If you run the flow with the full setup, you will end up with:
 
 * versioned datasets and model artifacts, accessible through the standard [Metaflow client API](https://docs.metaflow.org/metaflow/client);
-* a Comet dashboard for experiment tracking of the deep learning model;
-* finally, a live, scalable endpoint serving batched predictions using AWS Lambda and DynamoDB.
+* a dashboard for experiment tracking;
+* an automated, versioned documentation for your pipeline, in the form of Metaflow cards;
+* a live, scalable endpoint serving batched predictions using AWS Lambda and DynamoDB.
 
 ### TODOs
 
-* fix the current prediction bug
-* make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas
-* more use cases
-* better testing
-
-_TBC_
+* we are now running predictions for all models in parallel over our target set of shoppers. This is wasteful, as we should run predictions only for the winning model, after we run tests that confirm model quality - for now, we sidestep the issue of serializing Merlin model and restore it;
+* make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your set up;
+* support other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker);
+* improve testing with RecList, when [RecList Beta](https://reclist.io/) is ready.
 
 ## What's next?
 
@@ -148,7 +151,7 @@ _TBC_
 
 * _What if my datasets are not static to begin with, but depends on real interactions?_ We open-sourced a [serverless pipeline](https://github.com/jacopotagliabue/paas-data-ingestion) that show how data ingestion could work with the same philosophical principles.
 
-* _I want to add tool X, or replace Y with Z: how modular is this pipeline?_ Our aim is to present a pipeline simple enough to be quickly grasped, complex enough to sustain a real deep learning model and industry use case. That said, it is possible that what worked for us may not work as perfectly for you: e.g. you may wish to change experiment tracking (we showed an abstraction with [Neptune](https://neptune.ai/) [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat)), or use a different data warehouse solution (e.g. BigQuery), or orchestrate the entire thing in a different way (check again [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat) for a Prefect-based solution). We start by providing a flow that "just works", but our focus is on the functional pieces, not just the tools: what are the essential computations we need to run a modern recsys pipeline? If you find other tools are better for you, please go ahead - and let us know, feedback is always useful!
+* _I want to add tool X, or replace Y with Z: how modular is this pipeline?_ Our aim is to present a pipeline simple enough to be quickly grasped, complex enough to sustain a real deep learning model and industry use case. That said, it is possible that what worked for us may not work as perfectly for you: e.g. you may wish to change experiment tracking (e.g., an abstraction for [Neptune](https://neptune.ai/) is [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat)), or use a different data warehouse solution (e.g. BigQuery), or orchestrate the entire thing in a different way (check again [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat) for a Prefect-based solution). We start by providing a flow that "just works", but our focus is mainly on the functional pieces, not just the tools: what are the essential computations we need to run a modern recsys pipeline? If you find other tools are better for you, please go ahead - and let us know, feedback is always useful!
 
 _TBC_
 
@@ -159,8 +162,6 @@ Contributors:
 * [Jacopo](https://www.linkedin.com/in/jacopotagliabue/), general design, Metaflow fan boy, prototype;
 * the Outerbounds team, in particular [Hamel](https://www.linkedin.com/in/hamelhusain/) for Metaflow guidance, [Valay](https://www.linkedin.com/in/valay-dave-a3588596/) for AWS Batch support;
 * the NVIDIA Merlin team, in particular [Gabriel](https://www.linkedin.com/in/gabrielspmoreira/), [Even](https://www.linkedin.com/in/even-oldridge/), [Ronay](https://www.linkedin.com/in/ronay-ak/) and [Ben](https://www.linkedin.com/in/ben-frederickson/).
-
-_TBC_
 
 ## License
 

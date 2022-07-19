@@ -29,11 +29,30 @@ except:
 
 class merlinFlow(FlowSpec):
 
+    ### DATA PARAMETERS ###
+
     ROW_SAMPLING = Parameter(
         name='row_sampling',
         help='Snowflake row sampling: if 0, NO sampling is applied',
         default='1'
     )
+
+    #NOTE: data parameters - we split by time, leaving the last two weeks for validation and tests
+    # The first date in the table is 2018-09-20
+    # The last date in the table is 2020-09-22
+    TRAINING_END_DATE = Parameter(
+        name='training_end_date',
+        help='Data up until this date is used for training, format yyyy-mm-dd',
+        default='2020-09-08'
+    )
+
+    VALIDATION_END_DATE = Parameter(
+        name='validation_end_date',
+        help='Data up after training end and until this date is used for validation, format yyyy-mm-dd',
+        default='2020-09-15'
+    )
+
+    ### TRAINING PARAMETERS ###
 
     COMET_PROJECT_NAME = Parameter(
         name='comet_project_name',
@@ -53,25 +72,18 @@ class merlinFlow(FlowSpec):
         default='1' # default to 1 for quick testing
     )
 
-    #NOTE: data parameters - we split by time, leaving the last two weeks for validation and tests
-    # The first date in the table is 2018-09-20
-    # The last date in the table is 2020-09-22
-    TRAINING_END_DATE = Parameter(
-        name='training_end_date',
-        help='Data up until this date is used for training, format yyyy-mm-dd',
-        default='2020-09-08'
-    )
-
-    VALIDATION_END_DATE = Parameter(
-        name='validation_end_date',
-        help='Data up after training end and until this date is used for validation, format yyyy-mm-dd',
-        default='2020-09-15'
-    )
+    ### SERVING PARAMETERS ###
 
     DYNAMO_TABLE = Parameter(
         name='dynamo_table',
         help='Name of dynamo db table to store the pre-computed recs. Default is same as in the serverless application',
         default='userItemTable'
+    )
+
+    TOP_K = Parameter(
+        name='top_k',
+        help='Number of products to recommend for a giver shopper',
+        default='5'
     )
 
     @step
@@ -293,7 +305,7 @@ class merlinFlow(FlowSpec):
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
         topk_rec_model = self.get_items_topk_recommender_model(
-            train, train.schema, model, k=3
+            train, train.schema, model, k=int(self.TOP_K)
         )
         test_dataset = tf_dataloader.BatchedDataset(
             test, batch_size=1024, shuffle=False,
@@ -374,7 +386,7 @@ class merlinFlow(FlowSpec):
         """
         Just say bye!
         """
-        print("All done\n\nSee you, space cowboy\n")
+        print("All done\n\nSee you, recSys cowboy\n")
         return
 
 
