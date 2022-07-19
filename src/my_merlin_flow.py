@@ -316,13 +316,13 @@ class merlinFlow(FlowSpec):
         assert n_rows == len(self.target_shoppers)
         # map predictions to a final dictionary, with the actual H and M IDs for users and products
         self.h_m_shoppers = [str(self.id_2_user_id[_]) for _ in self.target_shoppers]
-        print(self.h_m_shoppers[:3])
+        print("Example target shoppers: ", self.h_m_shoppers[:3])
         sku_convert = lambda x: [str(self.id_2_item_id[_]) for _ in x]
         self.predictions = {
             self.h_m_shoppers[_]: sku_convert(self.raw_predictions[_].tolist()) for _ in range(n_rows)
             }
-        print(self.predictions[self.h_m_shoppers[0]])
-        # debug
+        print("Example target predictions", self.predictions[self.h_m_shoppers[0]])
+        # debug, if rows > len(self.predictions), same user appear twice in test set
         print(n_rows, len(self.predictions))
         # serialize the model and store the MF path to it
         self.model_path = serialize_model(model)
@@ -380,7 +380,7 @@ class merlinFlow(FlowSpec):
             # upload some static items as a test
             data = [ { 'userId': user, 'recs': json.dumps(recs) } for user, recs in self.best_predictions.items()] 
             # finally add test user
-            data.append({ 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(self.TOP_K)])})
+            data.append({ 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(int(self.TOP_K))])})
             # loop over predictions and store them in the table
             with table.batch_writer() as writer:
                 for item in data:
