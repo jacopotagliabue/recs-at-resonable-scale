@@ -57,7 +57,7 @@ _Adding PaaS deployment_
 
 _A note on containers_
 
-At the moment of writing, Merlin does not have an official ECR, so we pulled the following images:
+At the moment of writing, Merlin does not have an official ECR, so we pulled the following image:
 
 * `nvcr.io/nvidia/merlin/merlin-tensorflow-training:22.05`
 
@@ -139,6 +139,7 @@ If you run the flow with the full setup, you will end up with:
 ### TODOs
 
 * we are now running predictions for all models in parallel over our target set of shoppers. This is wasteful, as we should run predictions only for the winning model, after we run tests that confirm model quality - for now, we sidestep the issue of serializing Merlin model and restore it;
+* test the magic folder package to share [Merlin folders across steps](https://pypi.org/project/metaflow-plugin-magicdir/);
 * make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your set up;
 * support other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker);
 * improve testing with RecList, when [RecList Beta](https://reclist.io/) is ready.
