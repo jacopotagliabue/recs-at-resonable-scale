@@ -5,7 +5,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 *July 2022*: this is a WIP, come back often for updates, a blog post and my NVIDIA talk (FORTHCOMING)!
 
-_This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/) and [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
+_This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
 *TL;DR: (after setup) a single ML person is able to train a cutting edge deep learning model (actually, several versions of it in parallel), test it and deploy it without any explicit infrastructure work, without talking to any DevOps person, without using anything that is not Python or SQL.*
 
@@ -49,7 +49,7 @@ A Snowflake account is needed to host the data, and a working Metaflow setup is 
 
 _Adding experiment tracking_
 
-* _Comet ML_: [sign-up for free](https://www.comet.ml/signup) and get an api key. If you don't want experiment tracking, make sure to comment out the Comet specific parts in the `train_model` step.
+* _Comet ML_: [sign-up for free](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) and get an api key. If you don't want experiment tracking, make sure to comment out the Comet specific parts in the `train_model` step.
 
 _Adding PaaS deployment_
 
@@ -132,7 +132,7 @@ At the end of the flow, you can inspect the default [DAG Card](https://outerboun
 If you run the flow with the full setup, you will end up with:
 
 * versioned datasets and model artifacts, accessible through the standard [Metaflow client API](https://docs.metaflow.org/metaflow/client);
-* a dashboard for experiment tracking;
+* a dashboard for [experiment tracking](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale);
 * an automated, versioned documentation for your pipeline, in the form of Metaflow cards;
 * a live, scalable endpoint serving batched predictions using AWS Lambda and DynamoDB.
 
@@ -166,7 +166,7 @@ Main Contributors:
 
 Special thanks:
 
-* [Dhruv Nair](https://www.linkedin.com/in/dhruvnair/) for double-checking our experiment tracking setup and suggesting improvements.
+* [Dhruv Nair](https://www.linkedin.com/in/dhruvnair/) from [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) for double-checking our experiment tracking setup and suggesting improvements.
 
 ## License
 
