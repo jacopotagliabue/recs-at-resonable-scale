@@ -121,7 +121,7 @@ In particular, the table `"EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"` repre
 Once the above setup steps are completed, you can run the flow:
 
 * cd into the `src` folder;
-* run the flow with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py run –-with card --max-workers 4`, where `METAFLOW_PROFILE` is needed to select a specific Metaflow config (you can omit it, if you're using the default), `AWS_PROFILE` is needed to select a specific AWS config that runs the flow and it's related AWS infrastructure (you can omit it, if you're using the default), and `AWS_DEFAULT_REGION` is needed to specify the target AWS region (you can omit it, if you've it already specified in your local AWS PROFILE and you do not wish to change it).
+* run the flow with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py run --max-workers 4 --with card`, where `METAFLOW_PROFILE` is needed to select a specific Metaflow config (you can omit it, if you're using the default), `AWS_PROFILE` is needed to select a specific AWS config that runs the flow and it's related AWS infrastructure (you can omit it, if you're using the default), and `AWS_DEFAULT_REGION` is needed to specify the target AWS region (you can omit it, if you've it already specified in your local AWS PROFILE and you do not wish to change it).
 
 At the end of the flow, you can inspect the default [DAG Card](https://outerbounds.com/blog/integrating-pythonic-visual-reports-into-ml-pipelines/) with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py card view get_dataset`:
 

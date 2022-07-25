@@ -234,7 +234,7 @@ class merlinFlow(FlowSpec):
         # sets of hypers - we serialize them to a string and pass them to the foreach below
         self.hypers_sets = [json.dumps(_) for _ in [
             { 'BATCH_SIZE': 1024 },
-            { 'BATCH_SIZE': 4096 }
+        #{ 'BATCH_SIZE': 4096 }
         ]]
         self.next(self.train_model, foreach='hypers_sets')
 
@@ -318,9 +318,11 @@ class merlinFlow(FlowSpec):
         # check we have as many predictions as we have shoppers in the test set
         n_rows = self.raw_predictions.shape[0]
         self.target_shoppers = test_dataset.data.to_ddf().compute()['customer_id']
+        print("Inspect the shopper object for debugging...")
+        print(type(self.target_shoppers))
         assert n_rows == len(self.target_shoppers)
         # map predictions to a final dictionary, with the actual H and M IDs for users and products
-        self.h_m_shoppers = [str(self.id_2_user_id[_]) for _ in self.target_shoppers]
+        self.h_m_shoppers = [str(self.id_2_user_id[_]) for _ in self.target_shoppers.to_numpy().tolist()]
         print("Example target shoppers: ", self.h_m_shoppers[:3])
         sku_convert = lambda x: [str(self.id_2_item_id[_]) for _ in x]
         self.predictions = {
