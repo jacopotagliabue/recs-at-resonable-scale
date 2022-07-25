@@ -97,8 +97,10 @@ class merlinFlow(FlowSpec):
         print("username: %s" % current.username)
         if os.environ.get('EN_BATCH', '0') == '1':
             print("ATTENTION: AWS BATCH ENABLED!") 
-        data_store = os.environ.get('METAFLOW_DATASTORE_SYSROOT_S3', None)
-        if data_store is None:
+        # we need to check if Metaflow is running with remote (s3) data store or not
+        from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
+        print("DATASTORE_SYSROOT_S3: %s" % DATASTORE_SYSROOT_S3)
+        if DATASTORE_SYSROOT_S3 is None:
             print("ATTENTION: LOCAL DATASTORE ENABLED")
         # check variables and connections are working fine
         assert os.environ['COMET_API_KEY'] and self.COMET_PROJECT_NAME
@@ -217,11 +219,12 @@ class merlinFlow(FlowSpec):
             workflow.transform(cnt_dataset).to_parquet(output_path="{}/".format(label))
         # version the two folders prepared by NV tabular as tar files on s3
         # if the remote datastore is not enabled
-        if os.environ.get('METAFLOW_DATASTORE_SYSROOT_S3', None) is not None:
+        from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
+        if DATASTORE_SYSROOT_S3 is not None:
             s3_metaflow_client = S3(run=self)
             self.folders_to_s3_file = upload_dataset_folders(
                 s3_client=s3_metaflow_client,
-                folders=list(self.label_to_dataset.items())
+                folders=list(self.label_to_dataset.keys())
                 )
         # store the mapping Merlin ID -> article_id and Merlin ID -> customer_id
         user_unique_ids = list(pd.read_parquet('categories/unique.customer_id.parquet')['customer_id'])
@@ -230,7 +233,8 @@ class merlinFlow(FlowSpec):
         self.id_2_item_id = { idx:_ for idx, _ in enumerate(items_unique_ids) }
         # sets of hypers - we serialize them to a string and pass them to the foreach below
         self.hypers_sets = [json.dumps(_) for _ in [
-            { 'BATCH_SIZE': 1024 }
+            { 'BATCH_SIZE': 1024 },
+            { 'BATCH_SIZE': 4096 }
         ]]
         self.next(self.train_model, foreach='hypers_sets')
 
@@ -258,13 +262,14 @@ class merlinFlow(FlowSpec):
         import merlin.models.tf.dataset as tf_dataloader
         from merlin.schema.tags import Tags
         from dataset_utils import get_dataset_folders
+        from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
         # this is the CURRENT hyper param JSON in the fan-out
         # each copy of this step in the parallelization will have its own value
         self.hyper_string = self.input
         self.hypers = json.loads(self.hyper_string)
         target_folder = ''
         # read datasets folder from s3 if datastore is not local
-        if os.environ.get('METAFLOW_DATASTORE_SYSROOT_S3', None) is not None:
+        if DATASTORE_SYSROOT_S3 is not None:
             s3_metaflow_client = S3(run=self)
             target_folder = 'merlin/' 
             self.local_paths = get_dataset_folders(
@@ -378,9 +383,9 @@ class merlinFlow(FlowSpec):
             dynamodb = boto3.resource('dynamodb')
             table = dynamodb.Table(self.DYNAMO_TABLE)
             # upload some static items as a test
-            data = [ { 'userId': user, 'recs': json.dumps(recs) } for user, recs in self.best_predictions.items()] 
+            data = [{'userId': user, 'recs': json.dumps(recs) } for user, recs in self.best_predictions.items()] 
             # finally add test user
-            data.append({ 'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(int(self.TOP_K))])})
+            data.append({'userId': 'no_user', 'recs': json.dumps(['test_rec_{}'.format(_) for _ in range(int(self.TOP_K))])})
             # loop over predictions and store them in the table
             with table.batch_writer() as writer:
                 for item in data:
