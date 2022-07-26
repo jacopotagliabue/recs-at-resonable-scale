@@ -24,6 +24,8 @@ At a quick glance, this is what we are building:
 
 For an in-depth explanation of the philosophy behind the approach, please check the companion blog post (FORTHCOMING).
 
+_If you like this project please add a star on Github here and check out / share / star the [RecList](https://github.com/jacopotagliabue/reclist) package._
+
 ### Quick Links
 
 This project builds on our open roadmap for "MLOps at Resonable Scale", automated documentation of pipelines, rounded evaluation for RecSys:
@@ -132,17 +134,19 @@ At the end of the flow, you can inspect the default [DAG Card](https://outerboun
 If you run the flow with the full setup, you will end up with:
 
 * versioned datasets and model artifacts, accessible through the standard [Metaflow client API](https://docs.metaflow.org/metaflow/client);
-* a dashboard for [experiment tracking](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale);
+* a dashboard for [experiment tracking](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale), including a quick [panel](/images/predictions.png) to inspect predicted items for selected shoppers;
 * an automated, versioned documentation for your pipeline, in the form of Metaflow cards;
 * a live, scalable endpoint serving batched predictions using AWS Lambda and DynamoDB.
+
+![Experiment dashboard](/images/tracking.png)
 
 ### TODOs
 
 * we are now running predictions for all models in parallel over our target set of shoppers. This is wasteful, as we should run predictions only for the winning model, after we run tests that confirm model quality - for now, we sidestep the issue of serializing Merlin model and restore it;
+* improving prediction logging, and, generally analysis. Considering our roadmap, improvements will partially come automatically from the [RecList Beta](https://reclist.io/) roadmap;
 * test the magic folder package to share [Merlin folders across steps](https://pypi.org/project/metaflow-plugin-magicdir/);
 * make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your set up;
-* support other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker);
-* improve testing with RecList, when [RecList Beta](https://reclist.io/) is ready.
+* support other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker).
 
 ## What's next?
 

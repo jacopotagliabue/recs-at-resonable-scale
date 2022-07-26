@@ -179,6 +179,8 @@ class merlinFlow(FlowSpec):
         # convert the classical SNOWFLAKE upper case COLS to lower case (Keras does complain downstream otherwise)
         # TODO: should probably this in Snowflake directly ;-)
         dataset = [{ k.lower(): v for k, v in row.items() } for row in dataset]
+        self.item_id_2_group_name = { str(r['article_id']): r['product_group_name'].lower() for r in dataset }
+        print("Example articles: {}".format(list(self.item_id_2_group_name.keys())[:3]))
         # we split by time window, using the dates specified as parameters
         train_dataset = pt.from_pylist([row for row in dataset if row['t_dat'] < self.training_end_date])
         validation_dataset = pt.from_pylist([row for row in dataset 
@@ -304,7 +306,6 @@ class merlinFlow(FlowSpec):
         # test the model on validation set and store the results in a MF variable
         self.metrics = model.evaluate(valid, batch_size=1024, return_dict=True)
         print("\n\n====> Eval results: {}\n\n".format(self.metrics))
-        experiment.end()
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
         topk_rec_model = get_items_topk_recommender_model(
@@ -331,6 +332,27 @@ class merlinFlow(FlowSpec):
         print("Example target predictions", self.predictions[self.h_m_shoppers[0]])
         # debug, if rows > len(self.predictions), same user appear twice in test set
         print(n_rows, len(self.predictions))
+        # log some predictions as well, for the first three shoppers
+        n_shoppers = 10
+        predictions_to_log = []
+        for shopper in self.h_m_shoppers[:n_shoppers]:
+            cnt_predictions = self.predictions.get(shopper, None)
+            # there should be preds, but check to be extra sure
+            if not cnt_predictions:
+                continue
+            # append predictions one by one
+            for p in cnt_predictions:
+                predictions_to_log.append({
+                    "user_id": shopper,
+                    "product_id": p,
+                    # TODO: don't super like how meta-data are handled here
+                    "product_type": self.item_id_2_group_name.get(p, 'NO_GROUP'),
+                    # TODO: log score from two-tower model
+                    "score": 1.0  
+                })
+        # log the predictions and close experiment tracking
+        experiment.log_asset_data(predictions_to_log, name='predictions.json')
+        experiment.end()
         # serialize the model and store the MF path to it
         self.model_path = serialize_model(model)
         self.next(self.join_runs)
