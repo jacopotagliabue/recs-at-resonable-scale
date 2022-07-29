@@ -189,6 +189,6 @@ if __name__ == "__main__":
         snowflake_client=sf_client,
         snowflake_db='EXPLORATION_DB', # change this with your own DB if you wish
         snowflake_schema='HM_RAW',
-        snowflake_tables=['articles', 'customers', 'transactions_train'],
+        snowflake_tables=['articles', 'customers', 'transactions_train', 'images_to_s3'],
         data_folder=os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
     )

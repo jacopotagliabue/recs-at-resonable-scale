@@ -24,4 +24,3 @@ FROM
     "EXPLORATION_DB"."HM_RAW"."ARTICLES" as cd
 JOIN 
     latest_etl as le ON le.ETL_ID=cd.ETL_ID
-ORDER BY ARTICLE_ID

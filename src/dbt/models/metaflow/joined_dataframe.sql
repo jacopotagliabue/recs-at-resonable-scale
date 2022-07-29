@@ -7,7 +7,7 @@ SELECT
  FROM 
         {{ ref('dedup_transactions') }} as t_s
     JOIN 
-        {{ ref('articles_staging') }} as a_s
+        {{ ref('articles_metadata') }} as a_s
     ON 
         a_s.ARTICLE_ID=t_s.ARTICLE_ID
     JOIN 

@@ -165,7 +165,8 @@ class merlinFlow(FlowSpec):
                 POSTAL_CODE,
                 PRICE,
                 SALES_CHANNEL_ID,
-                T_DAT
+                T_DAT,
+                S3_URL
             FROM
                 "EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"
                 {}
