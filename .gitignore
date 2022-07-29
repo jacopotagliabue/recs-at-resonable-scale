@@ -142,6 +142,7 @@ metaflow.s3*/
 *.reclist
 *.gz
 .serverless/
+*.csv
 
 # dbt
 *log.legacy
