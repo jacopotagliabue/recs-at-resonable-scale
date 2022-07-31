@@ -61,8 +61,10 @@ def encode_text(text, model, tokenizer, processor):
     with torch.no_grad():
         inputs = tokenizer([text], padding=True, return_tensors="pt")
         inputs = processor(text=[text], images=None, return_tensors="pt", padding=True)
+        text_feature = model.get_text_features(**inputs)
+        text_feature /= text_feature.norm(dim=-1, keepdim=True)
     
-    return model.get_text_features(**inputs).detach().numpy()
+    return text_feature.detach().numpy()
 
 
 # App-specific code
