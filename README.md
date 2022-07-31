@@ -3,7 +3,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 ## Overview
 
-*July 2022*: this is a WIP, come back often for updates, a blog post and my NVIDIA talk (FORTHCOMING)!
+*August 2022*: this is a WIP, come back often for updates, a blog post and my NVIDIA talk (FORTHCOMING)!
 
 _This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
@@ -16,7 +16,8 @@ Our goal is to build a pipeline with all the necessary real-world ingredients:
 * dataOps with Snowflake and dbt;
 * training Merlin models on GPUs, in parallel, leveraging Metaflow;
 * advanced testing with Reclist (_FORTHCOMING_);
-* serving cached prediction through FaaS and SaaS (AWS Lambda, DynamoDb, the serverless framework).
+* serving cached prediction through FaaS and SaaS (AWS Lambda, DynamoDb, the serverless framework);
+* streamlit app for error analysis (_FORTHCOMING_).
 
 At a quick glance, this is what we are building:
 
@@ -32,9 +33,7 @@ This project builds on our open roadmap for "MLOps at Resonable Scale", automate
 
 * _NEW_: Upcoming [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
 * [RecList (project website)](http://reclist.io/);
-* [You don't need a bigger boat (repo, paper, talk)](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat);
-* [Post-Modern Stack (repo)](https://github.com/jacopotagliabue/post-modern-stack);
-* [DAG Cards are the new model cards (NeurIPS paper)](https://arxiv.org/abs/2110.13601).
+* [You don't need a bigger boat (repo, paper, talk)](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat).
 
 ## Pre-requisites
 
@@ -57,6 +56,10 @@ _Adding PaaS deployment_
 
 * _AWS Lambda setup_: if the env `SAVE_TO_CACHE` is set to `1`, the Metaflow pipeline will try and cache in dynamoDB recommendations for the users in the test set. Those recommendations can be served through an endpont using AWS Lambda. If you wish to serve your recommendations, you need to run the serverless project in the `serverless` folder _before_ running the flow: the project will create _both_ a DynamoDB table and a working GET endpoint. To do so: first, install the [serverless framework](https://www.serverless.com/framework/) and connect it with your [AWS](https://www.serverless.com/framework/docs/providers/aws/guide/credentials/); second, cd into the `serverless` folder, and run `AWS_PROFILE=tooso serverless deploy` (where `AWS_PROFILE` selects a specific AWS config with permission to run the framework, and can be omitted if you use your default). If all goes well, the CLI will create the relevant resources and print out the URL for your public rec API, e.g. `endpoint: GET - https://xafacoa313.execute-api.us-west-2.amazonaws.com/dev/itemRecs`: you can verifiy the endpoint is working by pasting the URL in the browser (response will be empty as you need to run the flow to populate dynamoDB). Make sure the region of deployment in the `serverless.yml` file is the same as the one in the Metaflow pipeline. Note that while we use the _serverless_ framework for convenience, the same setup can be done manually, if preferred.
 
+_Adding a Streamlit app for error analysis_
+
+* We are working on adding a Streamlit app (run with `EXPORT_TO_APP=0` for now) to help visualize and filter predictions! If you plan on using the app you need to pip install also the `requirements_app.txt` in the `app` folder.
+
 _A note on containers_
 
 At the moment of writing, Merlin does not have an official ECR, so we pulled the following image:
@@ -77,7 +80,9 @@ Setup a virtual environment with the project dependencies:
 * `source venv/bin/activate`
 * `pip install -r requirements.txt`
 
-Note that if you never plan on running Merlin's training locally, but only through AWS Batch, you can avoid installing merlin and tensorflow libraries to run the flow. 
+Note that if you never plan on running Merlin's training locally, but only through Metaflow + AWS Batch, you can avoid installing merlin and tensorflow libraries. 
+
+_NOTE_: if you plan on using the Streamlit app (above) make sure to pip install also the `requirements_app.txt` in the `app` folder.
 
 Inside `src`, create a version of the `local.env` file named only `.env` (do _not_ commit it!), and fill its values:
 
@@ -90,6 +95,7 @@ Inside `src`, create a version of the `local.env` file named only `.env` (do _no
 | SF_ROLE | string |  Snowflake role to run SQL |
 | EN_BATCH | 0-1 (0)  | Enable cloud computing for Metaflow |
 | COMET_API_KEY | string  | Comet ML api key  |
+| EXPORT_TO_APP | 0-1 (0)  | Enable exporting predictions for inspections through Streamlit (see below) |
 | SAVE_TO_CACHE | 0-1 (0)  | Enable storing predictions to an external cache for serving. If 1, you need to deploy the AWS Lambda (see above) before running the flow  |
 
 ### Load data into Snowflake 
@@ -129,6 +135,8 @@ At the end of the flow, you can inspect the default [DAG Card](https://outerboun
 
 ![Metaflow card](/images/card.png)
 
+For an intro to DAG cards, please check our [NeurIPS 2021 paper](https://arxiv.org/abs/2110.13601).
+
 ### Results
 
 If you run the flow with the full setup, you will end up with:
@@ -139,6 +147,8 @@ If you run the flow with the full setup, you will end up with:
 * a live, scalable endpoint serving batched predictions using AWS Lambda and DynamoDB.
 
 ![Experiment dashboard](/images/tracking.png)
+
+Cd into the `app` folder (make sure the requirements there are installed), and run `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2  streamlit run pred_inspector.py` (where `METAFLOW_PROFILE` and the AWS vars have the same behavior as for the general flow) to run the app helping with error analysis (_WIP_).
 
 ### TODOs
 
@@ -157,8 +167,6 @@ _TBC_
 * _What if my datasets are not static to begin with, but depends on real interactions?_ We open-sourced a [serverless pipeline](https://github.com/jacopotagliabue/paas-data-ingestion) that show how data ingestion could work with the same philosophical principles.
 
 * _I want to add tool X, or replace Y with Z: how modular is this pipeline?_ Our aim is to present a pipeline simple enough to be quickly grasped, complex enough to sustain a real deep learning model and industry use case. That said, it is possible that what worked for us may not work as perfectly for you: e.g. you may wish to change experiment tracking (e.g., an abstraction for [Neptune](https://neptune.ai/) is [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat)), or use a different data warehouse solution (e.g. BigQuery), or orchestrate the entire thing in a different way (check again [here](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat) for a Prefect-based solution). We start by providing a flow that "just works", but our focus is mainly on the functional pieces, not just the tools: what are the essential computations we need to run a modern recsys pipeline? If you find other tools are better for you, please go ahead - and let us know, feedback is always useful!
-
-_TBC_
 
 ## Acknowledgements
 

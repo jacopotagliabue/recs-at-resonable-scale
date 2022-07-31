@@ -180,8 +180,8 @@ class merlinFlow(FlowSpec):
         # convert the classical SNOWFLAKE upper case COLS to lower case (Keras does complain downstream otherwise)
         # TODO: should probably this in Snowflake directly ;-)
         dataset = [{ k.lower(): v for k, v in row.items() } for row in dataset]
-        self.item_id_2_group_name = { str(r['article_id']): r['product_group_name'].lower() for r in dataset }
-        print("Example articles: {}".format(list(self.item_id_2_group_name.keys())[:3]))
+        self.item_id_2_meta = { str(r['article_id']): r for r in dataset }
+        print("Example articles: {}".format(list(self.item_id_2_meta.keys())[:3]))
         # we split by time window, using the dates specified as parameters
         train_dataset = pt.from_pylist([row for row in dataset if row['t_dat'] < self.training_end_date])
         validation_dataset = pt.from_pylist([row for row in dataset 
@@ -224,11 +224,11 @@ class merlinFlow(FlowSpec):
         # if the remote datastore is not enabled
         from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
         if DATASTORE_SYSROOT_S3 is not None:
-            s3_metaflow_client = S3(run=self)
-            self.folders_to_s3_file = upload_dataset_folders(
-                s3_client=s3_metaflow_client,
-                folders=list(self.label_to_dataset.keys())
-                )
+            with S3(run=self) as s3_metaflow_client:
+                self.folders_to_s3_file = upload_dataset_folders(
+                    s3_client=s3_metaflow_client,
+                    folders=list(self.label_to_dataset.keys())
+                    )
         # store the mapping Merlin ID -> article_id and Merlin ID -> customer_id
         user_unique_ids = list(pd.read_parquet('categories/unique.customer_id.parquet')['customer_id'])
         items_unique_ids = list(pd.read_parquet('categories/unique.article_id.parquet')['article_id'])
@@ -273,13 +273,13 @@ class merlinFlow(FlowSpec):
         target_folder = ''
         # read datasets folder from s3 if datastore is not local
         if DATASTORE_SYSROOT_S3 is not None:
-            s3_metaflow_client = S3(run=self)
             target_folder = 'merlin/' 
-            self.local_paths = get_dataset_folders(
-                s3_client=s3_metaflow_client,
-                folders_to_s3_file=self.folders_to_s3_file,
-                target_folder=target_folder
-            )
+            with S3(run=self) as s3_metaflow_client:
+                self.local_paths = get_dataset_folders(
+                    s3_client=s3_metaflow_client,
+                    folders_to_s3_file=self.folders_to_s3_file,
+                    target_folder=target_folder
+                )
         train = Dataset('{}train/*.parquet'.format(target_folder))
         valid = Dataset('{}valid/*.parquet'.format(target_folder))
         test = Dataset('{}test/*.parquet'.format(target_folder))
@@ -320,16 +320,27 @@ class merlinFlow(FlowSpec):
         # check we have as many predictions as we have shoppers in the test set
         n_rows = self.raw_predictions.shape[0]
         self.target_shoppers = test_dataset.data.to_ddf().compute()['customer_id']
-        print("Inspect the shopper object for debugging...")
-        print(type(self.target_shoppers))
+        print("Inspect the shopper object for debugging...{}".format(type(self.target_shoppers)))
         assert n_rows == len(self.target_shoppers)
         # map predictions to a final dictionary, with the actual H and M IDs for users and products
         self.h_m_shoppers = [str(self.id_2_user_id[_]) for _ in self.target_shoppers.to_numpy().tolist()]
         print("Example target shoppers: ", self.h_m_shoppers[:3])
+        self.target_items = test_dataset.data.to_ddf().compute()['article_id']
+        print("Example target items: ", self.target_items[:3])
         sku_convert = lambda x: [str(self.id_2_item_id[_]) for _ in x]
-        self.predictions = {
-            self.h_m_shoppers[_]: sku_convert(self.raw_predictions[_].tolist()) for _ in range(n_rows)
-            }
+        predictions = {}
+        for _ in range(n_rows):
+            # don't overwite if we already have a prediction for this user
+            cnt_user = self.h_m_shoppers[_]
+            cnt_raw_preds = self.raw_predictions[_].tolist()
+            cnt_target = self.target_items[_]
+            if cnt_user not in predictions:
+                predictions[cnt_user] = {
+                    'items': sku_convert(cnt_raw_preds),
+                    'target': sku_convert([cnt_target])[0]
+                } 
+        # version the predictions
+        self.predictions = predictions
         print("Example target predictions", self.predictions[self.h_m_shoppers[0]])
         # debug, if rows > len(self.predictions), same user appear twice in test set
         print(n_rows, len(self.predictions))
@@ -342,12 +353,13 @@ class merlinFlow(FlowSpec):
             if not cnt_predictions:
                 continue
             # append predictions one by one
-            for p in cnt_predictions:
+            for p in cnt_predictions['items']:
+                product_type = self.item_id_2_meta[p]['product_group_name'] if p in self.item_id_2_meta else 'NO_GROUP' 
                 predictions_to_log.append({
                     "user_id": shopper,
                     "product_id": p,
                     # TODO: don't super like how meta-data are handled here
-                    "product_type": self.item_id_2_group_name.get(p, 'NO_GROUP'),
+                    "product_type": product_type,
                     # TODO: log score from two-tower model
                     "score": 1.0  
                 })
@@ -376,6 +388,8 @@ class merlinFlow(FlowSpec):
             self.best_model,
             self.model_paths[self.best_model]
             ))
+        # pick a final mapping for metadata
+        self.final_item_id_2_meta = inputs[0].item_id_2_meta
         # next, deploy
         self.next(self.model_testing)
 
@@ -387,6 +401,68 @@ class merlinFlow(FlowSpec):
         Forthcoming!
         """
         #TODO: add RecList tests, for now just go the last step
+        self.next(self.export_to_app)
+
+    @step
+    def export_to_app(self):
+        """
+        Prepare artifacts for prediction test cases to be inspected by the app. 
+
+        IMPORTANT: if you wish to run this step, you need the additional dependencies specified
+        in the requirements_app.txt file in the app folder. Since these packages are fairly heavy
+        and the app is a small prototype, we did not include them in the standard requirements.txt
+        and leave it to the user to install them manually if she wishes to explore this feature
+        as well.
+
+        If the EXPORT_TO_APP env is not 1, we skip this step and go to deployment.
+        """
+        # if the flag is specified, we prepare a dataframe for the app
+        if os.environ.get('EXPORT_TO_APP', None) == '1':
+            import pandas as pd
+            from app_utils import encode_image # pylint: disable=import-error
+            import torch # pylint: disable=import-error
+            from transformers import CLIPProcessor, CLIPModel # pylint: disable=import-error
+            # prepare the dataframe containing the predictions, metadata, and images
+            rows = []
+            # limit number of predictions to a reasonable amount
+            max_preds = 100
+            for shopper, preds in self.best_predictions.items():
+                target_item = preds['target']
+                img_url = self.final_item_id_2_meta[target_item]['s3_url']
+                if not img_url:
+                    continue
+                top_pred = preds['items'][0]
+                new_row = {
+                    'user_id': shopper,
+                    'target_item': target_item,
+                    'predicted_item': top_pred,
+                    'image_url': img_url,
+                    'product_type': self.final_item_id_2_meta[target_item]['product_group_name']
+                }
+                rows.append(new_row)
+                if len(rows) >= max_preds:
+                    break
+            # rows to dataframe
+            df = pd.DataFrame(rows)
+            assert len(df) == max_preds
+            # init clip
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            img_vectors = []
+            for img in list(df['image_url']):
+                cnt_vector = encode_image(
+                    model,
+                    processor,
+                    img,
+                    device
+                )
+                # shape is 1,512 - just save the 1 dim vector
+                img_vectors.append(cnt_vector[0])
+            df['image_vectors'] = img_vectors
+            # save the dataframe as a Metaflow artifact
+            self.prediction_df = df
+
         self.next(self.cache_predictions)
 
     @step
