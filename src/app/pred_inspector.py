@@ -11,6 +11,15 @@ FLOW_NAME = 'merlinFlow' # make sure it's the same as my_merlin_flow.py
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def build_html_image_tag(image_url: str):
+    """
+    
+    Trick from https://github.com/streamlit/streamlit/issues/1873
+
+    """
+    return '<img src="{}" height="100">'.format(image_url)
+
+
 @st.cache
 def get_artifacts_from_last_run(flow_name: str):
     """
@@ -20,12 +29,14 @@ def get_artifacts_from_last_run(flow_name: str):
     """
     flow = Flow(flow_name)
     target_run_id = flow.latest_successful_run.id
-    print(target_run_id)
+    print("Run Id: {}".format(target_run_id))
     target_step = Step('{}/{}/export_to_app'.format(flow_name, target_run_id))
     # retrieve the dataframe including metadata and the CLIP image vectors
     df = target_step.task.data.prediction_df
     print("===== Df loaded from Metaflow =====\n")
     print(df.head(3))
+    df['target_image'] = df.apply(lambda row: build_html_image_tag(row['target_image_url']), axis=1)
+    df['predicted_image'] = df.apply(lambda row: build_html_image_tag(row['predicted_image_url']), axis=1)
 
     return df
 
@@ -48,16 +59,10 @@ def encode_text(text, model, tokenizer, processor):
     
     """
     with torch.no_grad():
-        inputs = tokenizer([text],  padding=True, return_tensors="pt")
+        inputs = tokenizer([text], padding=True, return_tensors="pt")
         inputs = processor(text=[text], images=None, return_tensors="pt", padding=True)
     
     return model.get_text_features(**inputs).detach().numpy()
-
-
-def find_best_matches(image, mode, text):
-    text_features = encode_text(text)
-    
-    return None
 
 
 # App-specific code
@@ -67,10 +72,38 @@ def find_best_matches(image, mode, text):
 metaflow_df = get_artifacts_from_last_run(FLOW_NAME)
 model, processor, tokenizer = load_clip(device)
 
+# get unique product types
+product_types = [None] + list(metaflow_df['product_type'].unique())
+
+# decide which columns to show
+cols = ['target_item', 'target_image', 'product_type', 'predicted_item', 'predicted_image']
+
 # app title
 st.title('Inspecting recommendations made by the model')
 
 # show data from Metaflow
-if st.checkbox('Show raw data'):
-    st.subheader('Raw data from Metaflow')
-    st.write(metaflow_df[:10])
+if st.checkbox('Show raw data from Metaflow'):
+    st.write(metaflow_df[:3])
+
+st.header('Display predictions')
+option = st.selectbox('Filter by product type', product_types)
+st.write('You selected: `{}`'.format(option))
+
+query = st.text_input('Free-text search', '')
+st.write('You searched for: `{}`'.format(query))
+
+df = metaflow_df.copy()
+# if there is a filter specified, filter the dataframe
+if option is not None:
+    df = df[df['product_type'] == option]
+
+# if there is a text specified, sort the dataframe
+if query.strip() != '':
+    encoded_text = encode_text(query.strip().lower(), model, tokenizer, processor)
+    # get all image vectors in numpy array
+    image_vectors = np.array(list(df['image_vectors']))
+    df['dot_product'] = list((encoded_text @ image_vectors.T).squeeze(0))
+    df = df.sort_values(by='dot_product', ascending=False)
+
+# diplay the dataframe as HTML to have images
+st.write(df[cols].to_html(escape=False), unsafe_allow_html=True)

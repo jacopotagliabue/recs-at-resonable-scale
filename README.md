@@ -17,7 +17,7 @@ Our goal is to build a pipeline with all the necessary real-world ingredients:
 * training Merlin models on GPUs, in parallel, leveraging Metaflow;
 * advanced testing with Reclist (_FORTHCOMING_);
 * serving cached prediction through FaaS and SaaS (AWS Lambda, DynamoDb, the serverless framework);
-* streamlit app for error analysis (_FORTHCOMING_).
+* error analysis and debugging with a streamlit app (_experimental feature_).
 
 At a quick glance, this is what we are building:
 
@@ -58,7 +58,7 @@ _Adding PaaS deployment_
 
 _Adding a Streamlit app for error analysis_
 
-* We are working on adding a Streamlit app (run with `EXPORT_TO_APP=0` for now) to help visualize and filter predictions! If you plan on using the app you need to pip install also the `requirements_app.txt` in the `app` folder.
+* We added a small Streamlit app (run with `EXPORT_TO_APP=1` to test this _very experimental feature_) to help visualize and filter predictions: how is the model doing on "short sleeves" items? If you plan on using the app you need to install also the `requirements_app.txt` in the `app` folder.
 
 _A note on containers_
 
@@ -95,7 +95,7 @@ Inside `src`, create a version of the `local.env` file named only `.env` (do _no
 | SF_ROLE | string |  Snowflake role to run SQL |
 | EN_BATCH | 0-1 (0)  | Enable cloud computing for Metaflow |
 | COMET_API_KEY | string  | Comet ML api key  |
-| EXPORT_TO_APP | 0-1 (0)  | Enable exporting predictions for inspections through Streamlit (see below) |
+| EXPORT_TO_APP | 0-1 (0)  | Enable exporting predictions for inspections through Streamlit |
 | SAVE_TO_CACHE | 0-1 (0)  | Enable storing predictions to an external cache for serving. If 1, you need to deploy the AWS Lambda (see above) before running the flow  |
 
 ### Load data into Snowflake 
@@ -148,7 +148,14 @@ If you run the flow with the full setup, you will end up with:
 
 ![Experiment dashboard](/images/tracking.png)
 
-Cd into the `app` folder (make sure the requirements there are installed), and run `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2  streamlit run pred_inspector.py` (where `METAFLOW_PROFILE` and the AWS vars have the same behavior as for the general flow) to run the app helping with error analysis (_WIP_).
+If you have set `EXPORT_TO_APP=1` (and completed the setup), you can also visualize predictions using a Streamlit app that:
+
+* automatically uses the serialized data from the last succesful Metaflow run; 
+* leverages CLIP capabilities to offer a quick, free-text way to navigate the prediction set based on the features of the ground truth item (e.g. "long sleeves shirt").
+
+Cd into the `app` folder, and run `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2  streamlit run pred_inspector.py` (where all the envs have the same behavior as above) to start the app - you can filter for product type of the target item and use text-to-image search to sort items (try for example with "jeans" or "short sleeves").
+
+![Debugging app](/images/streamlit.gif)
 
 ### TODOs
 

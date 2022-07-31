@@ -428,15 +428,17 @@ class merlinFlow(FlowSpec):
             max_preds = 100
             for shopper, preds in self.best_predictions.items():
                 target_item = preds['target']
-                img_url = self.final_item_id_2_meta[target_item]['s3_url']
-                if not img_url:
-                    continue
+                target_img_url = self.final_item_id_2_meta[target_item]['s3_url']
                 top_pred = preds['items'][0]
+                predicted_img_url = self.final_item_id_2_meta[top_pred]['s3_url']
+                if not target_img_url or not predicted_img_url:
+                    continue
                 new_row = {
                     'user_id': shopper,
                     'target_item': target_item,
                     'predicted_item': top_pred,
-                    'image_url': img_url,
+                    'target_image_url': target_img_url,
+                    'predicted_image_url': predicted_img_url,
                     'product_type': self.final_item_id_2_meta[target_item]['product_group_name']
                 }
                 rows.append(new_row)
@@ -450,7 +452,7 @@ class merlinFlow(FlowSpec):
             model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
             processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
             img_vectors = []
-            for img in list(df['image_url']):
+            for img in list(df['target_image_url']):
                 cnt_vector = encode_image(
                     model,
                     processor,
