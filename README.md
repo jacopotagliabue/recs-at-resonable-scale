@@ -17,7 +17,7 @@ Our goal is to build a pipeline with all the necessary real-world ingredients:
 * training Merlin models on GPUs, in parallel, leveraging Metaflow;
 * advanced testing with Reclist (_FORTHCOMING_);
 * serving cached prediction through FaaS and SaaS (AWS Lambda, DynamoDb, the serverless framework);
-* error analysis and debugging with a streamlit app (_experimental feature_).
+* error analysis and debugging with a Streamlit app (_experimental feature_).
 
 At a quick glance, this is what we are building:
 
@@ -32,7 +32,7 @@ _If you like this project please add a star on Github here and check out / share
 This project builds on our open roadmap for "MLOps at Resonable Scale", automated documentation of pipelines, rounded evaluation for RecSys:
 
 * _NEW_: [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
-* [NVIDIA RecSys Summit keynote](https://youtu.be/9rouLchcC0k?t=147) and [slides](/slides/NVIDIA_RECSYS_SUMMIT_JT.pdf)
+* [NVIDIA RecSys Summit keynote](https://youtu.be/9rouLchcC0k?t=147) and [slides](/slides/NVIDIA_RECSYS_SUMMIT_JT.pdf);
 * [RecList (project website)](http://reclist.io/);
 * [You don't need a bigger boat (repo, paper, talk)](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat).
 
