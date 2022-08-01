@@ -3,7 +3,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 ## Overview
 
-*August 2022*: this is a WIP, come back often for updates, a blog post and my NVIDIA talk (FORTHCOMING)!
+*August 2022*: this is a WIP, come back often for updates and a blog post!
 
 _This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
@@ -23,7 +23,7 @@ At a quick glance, this is what we are building:
 
 ![Recs at reasonable scale](/images/stack.jpg)
 
-For an in-depth explanation of the philosophy behind the approach, please check the companion blog post (FORTHCOMING).
+For an in-depth explanation of the philosophy behind the approach, please check the companion blog post (forthcoming) or watch our [NVIDIA Summit keynote](https://youtu.be/9rouLchcC0k?t=147).
 
 _If you like this project please add a star on Github here and check out / share / star the [RecList](https://github.com/jacopotagliabue/reclist) package._
 
@@ -31,7 +31,8 @@ _If you like this project please add a star on Github here and check out / share
 
 This project builds on our open roadmap for "MLOps at Resonable Scale", automated documentation of pipelines, rounded evaluation for RecSys:
 
-* _NEW_: Upcoming [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
+* _NEW_: [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
+* [NVIDIA RecSys Summit keynote](https://youtu.be/9rouLchcC0k?t=147) and [slides](/slides/NVIDIA_RECSYS_SUMMIT_JT.pdf)
 * [RecList (project website)](http://reclist.io/);
 * [You don't need a bigger boat (repo, paper, talk)](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat).
 
