@@ -3,7 +3,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 ## Overview
 
-*August 2022*: this is a WIP, come back often for updates and a blog post!
+*November 2022*: this is a WIP, come back often for updates and a blog post!
 
 _This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
@@ -31,7 +31,7 @@ _If you like this project please add a star on Github here and check out / share
 
 This project builds on our open roadmap for "MLOps at Resonable Scale", automated documentation of pipelines, rounded evaluation for RecSys:
 
-* _NEW_: [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
+* [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
 * [NVIDIA RecSys Summit keynote](https://youtu.be/9rouLchcC0k?t=147) and [slides](/slides/NVIDIA_RECSYS_SUMMIT_JT.pdf);
 * [RecList (project website)](http://reclist.io/);
 * [You don't need a bigger boat (repo, paper, talk)](https://github.com/jacopotagliabue/you-dont-need-a-bigger-boat).
@@ -65,7 +65,7 @@ _A note on containers_
 
 At the moment of writing, Merlin does not have an official ECR, so we pulled the following image:
 
-* `nvcr.io/nvidia/merlin/merlin-tensorflow-training:22.05`
+* `nvcr.io/nvidia/merlin/merlin-tensorflow-training:22.10`
 
 and slightly changed the entry point to work with Metaflow. The `docker` folder contains the relevant files - the current flow uses a public ECR repository we prepared on our AWS (`public.ecr.aws/b3x2d2n0/metaflow_merlin`) when running training in _BATCH_; if you wish to use your own ECR or the repo above becomes unavailable for whatever reason, you can just change the relevant `image` parameter in the flow.
 
@@ -94,6 +94,7 @@ Inside `src`, create a version of the `local.env` file named only `.env` (do _no
 | SF_ACCOUNT | string  |  Snowflake account  |
 | SF_DB | string |  Snowflake database  |
 | SF_ROLE | string |  Snowflake role to run SQL |
+| SF_WAREHOUSE | string |  Snowflake warehouse to run SQL |
 | EN_BATCH | 0-1 (0)  | Enable cloud computing for Metaflow |
 | COMET_API_KEY | string  | Comet ML api key  |
 | EXPORT_TO_APP | 0-1 (0)  | Enable exporting predictions for inspections through Streamlit |
@@ -130,9 +131,9 @@ In particular, the table `"EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"` repre
 Once the above setup steps are completed, you can run the flow:
 
 * cd into the `src` folder;
-* run the flow with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py run --max-workers 4 --with card`, where `METAFLOW_PROFILE` is needed to select a specific Metaflow config (you can omit it, if you're using the default), `AWS_PROFILE` is needed to select a specific AWS config that runs the flow and it's related AWS infrastructure (you can omit it, if you're using the default), and `AWS_DEFAULT_REGION` is needed to specify the target AWS region (you can omit it, if you've it already specified in your local AWS PROFILE and you do not wish to change it).
+* run the flow with `AWS_PROFILE=DemoReno-363597772528 python my_merlin_flow.py run --max-workers 4 --with card`, where `AWS_PROFILE` is needed to select the AWS config that runs the flow and its related AWS infrastructure (you can omit it, if you're using the default). As per standard Metaflow setup, make sure to set as envs also `METAFLOW_PROFILE` and `AWS_DEFAULT_REGION` as needed (you can omit it, if you're using the default settings after the [AWS Setup](https://docs.metaflow.org/getting-started/infrastructure)).
 
-At the end of the flow, you can inspect the default [DAG Card](https://outerbounds.com/blog/integrating-pythonic-visual-reports-into-ml-pipelines/) with `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2 python my_merlin_flow.py card view get_dataset`:
+At the end of the flow, you can inspect the default [DAG Card](https://outerbounds.com/blog/integrating-pythonic-visual-reports-into-ml-pipelines/) with `python my_merlin_flow.py card view get_dataset`:
 
 ![Metaflow card](/images/card.png)
 
@@ -154,15 +155,14 @@ If you have set `EXPORT_TO_APP=1` (and completed the setup), you can also visual
 * automatically uses the serialized data from the last succesful Metaflow run; 
 * leverages CLIP capabilities to offer a quick, free-text way to navigate the prediction set based on the features of the ground truth item (e.g. "long sleeves shirt").
 
-Cd into the `app` folder, and run `METAFLOW_PROFILE=metaflow AWS_PROFILE=tooso AWS_DEFAULT_REGION=us-west-2  streamlit run pred_inspector.py` (where all the envs have the same behavior as above) to start the app - you can filter for product type of the target item and use text-to-image search to sort items (try for example with "jeans" or "short sleeves").
+Cd into the `app` folder, and run `streamlit run pred_inspector.py` (make sure Metaflow envs have been set, as usual). You can filter for product type of the target item and use text-to-image search to sort items (try for example with "jeans" or "short sleeves").
 
 ![Debugging app](/images/streamlit.gif)
 
 ### TODOs
 
 * we are now running predictions for all models in parallel over our target set of shoppers. This is wasteful, as we should run predictions only for the winning model, after we run tests that confirm model quality - for now, we sidestep the issue of serializing Merlin model and restore it;
-* improving prediction logging, and, generally analysis. Considering our roadmap, improvements will partially come automatically from the [RecList Beta](https://reclist.io/) roadmap;
-* test the magic folder package to share [Merlin folders across steps](https://pypi.org/project/metaflow-plugin-magicdir/);
+* improving error analysis and evaluation: improvements will come automatically from [RecList](https://reclist.io/);
 * make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your set up;
 * support other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker).
 

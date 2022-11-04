@@ -110,7 +110,8 @@ class merlinFlow(FlowSpec):
             os.environ['SF_USER'],
             os.environ['SF_PWD'],
             os.environ['SF_ACCOUNT'],
-            os.environ['SF_ROLE']
+            os.environ['SF_ROLE'],
+            os.environ['SF_WAREHOUSE']
             )
         snowflake_version = sf_client.get_version()
         print(snowflake_version)
@@ -134,7 +135,8 @@ class merlinFlow(FlowSpec):
             os.environ['SF_USER'],
             os.environ['SF_PWD'],
             os.environ['SF_ACCOUNT'],
-            os.environ['SF_ROLE']
+            os.environ['SF_ROLE'],
+            os.environ['SF_WAREHOUSE']
         )
         # check if we need to sample - this is useful to iterate on the code with a real setup
         # without reading in too much data...
@@ -170,7 +172,7 @@ class merlinFlow(FlowSpec):
             FROM
                 "EXPLORATION_DB"."HM_POST"."FILTERED_DATAFRAME"
                 {}
-            ORDER BY -- order by date
+            ORDER BY
                 T_DAT ASC
         """.format(sampling_expression)
         print("Fetching rows with query: \n {} \n\nIt may take a while...\n".format(query))
@@ -262,7 +264,7 @@ class merlinFlow(FlowSpec):
         from model_utils import get_items_topk_recommender_model, serialize_model
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
-        import merlin.models.tf.dataset as tf_dataloader
+        import merlin.models.tf.dataset as tf_dataloader # pylint: disable=import-error
         from merlin.schema.tags import Tags
         from dataset_utils import get_dataset_folders
         from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 

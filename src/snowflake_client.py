@@ -5,11 +5,12 @@ from snowflake.connector import DictCursor
 
 class SnowflakeClient:
 
-    def __init__(self, user, pwd, account, role, keep_alive=False):
+    def __init__(self, user, pwd, account, role, warehouse, keep_alive=False):
         self.snowflake_client = snowflake.connector.connect(
             user=user,
             password=pwd,
             account=account,
+            warehouse=warehouse,
             role=role,
             client_session_keep_alive=keep_alive
         )

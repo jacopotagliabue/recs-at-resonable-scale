@@ -3,11 +3,11 @@ snowflake-connector-python==2.7.4
 python-dotenv==0.19.2
 comet-ml==3.26.0
 sagemaker==2.59.8
-reclist==0.2.3
+reclist==0.3.1
 dbt-snowflake==1.0.0
 pyarrow==8.0.0
 nvtabular==1.2.2
 numpy==1.22
-merlin-core==0.4.0
-merlin-models==0.5.0
+merlin-core==0.8.0
+merlin-models==0.9.0
 tensorflow==2.9.1
