@@ -4,22 +4,32 @@ Utility functions to deal with Merlin datasets in the flow when Metaflow + AWS a
 
 """
 
+def tar_to_s3(
+    folder: str,
+    s3_client
+    ):
+    """
+    Upload a folder to a tar.gz archive and return the s3 url and the local tar
+    """
+    import tarfile
+    local_tar_name = "{}.tar.gz".format(folder)
+    with tarfile.open(local_tar_name, mode="w:gz") as _tar:
+        _tar.add('{}/'.format(folder), recursive=True)
+    with open(local_tar_name, "rb") as in_file:
+        data = in_file.read()
+        url = s3_client.put(local_tar_name, data)
+        print("Folder saved at: {}".format(url))
+
+    return url, local_tar_name 
+
 def upload_dataset_folders(
     s3_client,
     folders: list
     ):
-    import tarfile
-
     folders_to_s3_file = {}
     for folder in folders:
-        local_tar_name = "{}.tar.gz".format(folder)
-        with tarfile.open(local_tar_name, mode="w:gz") as _tar:
-            _tar.add('{}/'.format(folder), recursive=True)
-        with open(local_tar_name, "rb") as in_file:
-            data = in_file.read()
-            url = s3_client.put(local_tar_name, data)
-            print("Folder saved at: {}".format(url))
-            folders_to_s3_file[folder] = (url, local_tar_name)
+        url, local_tar_name = tar_to_s3(folder, s3_client)
+        folders_to_s3_file[folder] = (url, local_tar_name)
         # delete folder locally
         import shutil
         shutil.rmtree('{}/'.format(folder))

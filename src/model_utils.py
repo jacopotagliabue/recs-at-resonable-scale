@@ -18,11 +18,3 @@ def get_items_topk_recommender_model(
     item_dataset = Dataset(item_dataset)
 
     return model.to_top_k_recommender(item_dataset, k=k)
-
-
-def serialize_model(model):
-    # TODO: implement serialization for Merlin models
-    # should return a model path
-    metaflow_model_path = 'my_model_path'
-
-    return metaflow_model_path
