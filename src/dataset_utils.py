@@ -9,7 +9,7 @@ def tar_to_s3(
     s3_client
     ):
     """
-    Upload a folder to a tar.gz archive and return the s3 url and the local tar
+    Upload a folder to a tar.gz archive and return the s3 url
     """
     import tarfile
     local_tar_name = "{}.tar.gz".format(folder)
@@ -19,8 +19,11 @@ def tar_to_s3(
         data = in_file.read()
         url = s3_client.put(local_tar_name, data)
         print("Folder saved at: {}".format(url))
+    # debug
+    my_tar = tarfile.open(local_tar_name)
+    print("Tar members: ", my_tar.getmembers())
 
-    return url, local_tar_name 
+    return url, local_tar_name
 
 def upload_dataset_folders(
     s3_client,

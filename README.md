@@ -155,16 +155,12 @@ Cd into the `app` folder, and run `streamlit run pred_inspector.py` (make sure M
 
 ![Debugging app](/images/streamlit.gif)
 
-### TODOs
+### Where to go from here (either with us or by yourself)?
 
-* we are now running predictions for all models in parallel over our target set of shoppers. This is wasteful, as we should run predictions only for the winning model, after we run tests that confirm model quality - for now, we sidestep the issue of serializing Merlin model and restore it;
-* improving error analysis and evaluation: improvements will come automatically from [RecList](https://reclist.io/);
-* make sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your set up;
-* support other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker).
-
-## What's next?
-
-_TBC_
+* Supporting both "local" and "AWS" Metaflow makes the code a bit cumbersome everytime we need to resort to manual serialization of datasets and model files. No obvious trick exists to solve this as some of the artifacts are files, some are folders etc., but of course, once you pick your poison (for us, AWS), you could drastically simplify the flow for less pedagogical use cases;
+* Improving error analysis and evaluation: improvements will come automatically from [RecList](https://reclist.io/);
+* Making sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your GPU set up;
+* Supporting other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker).
 
 ## Q&A
 

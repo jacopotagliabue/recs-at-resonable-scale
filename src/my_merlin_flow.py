@@ -290,6 +290,8 @@ class merlinFlow(FlowSpec):
         from comet_ml import Experiment
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
+        from merlin.schema.tags import Tags
+        import tensorflow as tf
         # this is the CURRENT hyper param JSON in the fan-out
         # each copy of this step in the parallelization will have its own value
         self.hyper_string = self.input
@@ -309,14 +311,20 @@ class merlinFlow(FlowSpec):
         self.comet_experiment_key = experiment.get_key()
         experiment.add_tag(current.pathspec)
         experiment.log_parameters(self.hypers)
-        # train the model and test it on validation set
-        model = mm.TwoTowerModel(
-            train.schema,
-            query_tower=mm.MLPBlock([128, 64], no_activation_last_layer=True),
-            samplers=[mm.InBatchSampler()],
-            embedding_options=mm.EmbeddingOptions(infer_embedding_sizes=True)
-        )
-        model.compile(optimizer="adam", run_eagerly=False, metrics=[mm.RecallAt(10), mm.NDCGAt(10)])
+        # train the model and evaluate it on validation set
+        user_schema = train.schema.select_by_tag(Tags.USER)
+        user_inputs = mm.InputBlockV2(user_schema)
+        query = mm.Encoder(user_inputs, mm.MLPBlock([128, 64]))
+        item_schema = train.schema.select_by_tag(Tags.ITEM)
+        item_inputs = mm.InputBlockV2(item_schema,)
+        candidate = mm.Encoder(item_inputs, mm.MLPBlock([128, 64]))
+        model = mm.TwoTowerModelV2(query, candidate) # pylint: disable=no-member
+        opt = tf.keras.optimizers.Adagrad(learning_rate=0.01)
+        model.compile(optimizer=opt, run_eagerly=False, 
+                    metrics=[mm.RecallAt(10), 
+                            mm.NDCGAt(10)
+                            ],
+                    )
         model.fit(train, validation_data=valid, batch_size=self.hypers['BATCH_SIZE'], epochs=int(self.N_EPOCHS))
         self.metrics = model.evaluate(valid, batch_size=1024, return_dict=True)
         print("\n\n====> Eval results: {}\n\n".format(self.metrics))
@@ -342,10 +350,10 @@ class merlinFlow(FlowSpec):
         model.save(model_path)
         if is_cloud:
             with S3(run=self) as s3_metaflow_client:
-                model_path, model_file = tar_to_s3(
+                return tar_to_s3(
                     model_path,
                     s3_metaflow_client
-                )
+                )[0]
 
         return model_path
 
@@ -353,7 +361,6 @@ class merlinFlow(FlowSpec):
     def load_merlin_model(
         self,
         model_path: str,
-        model_folder: str,
         is_cloud=True
     ):
         import tensorflow as tf
@@ -361,19 +368,32 @@ class merlinFlow(FlowSpec):
         
         if is_cloud:
             # recover the tar.gz file from the s3 path
-            model_file = model_path.split('/')[-1]
+            #model_file = model_path.split('/')[-1]
+            #print("Model file: {}".format(model_file))
             # if datastore is AWS, we need to retrieve the tar folder, and then extract to
             # a local one, and point our variable to that!
-            with S3(run=self) as s3_metaflow_client:
+            with S3() as s3_metaflow_client:
                 # overwrite model path variable to be the final target folder
                 # instead of one of the many local ones from the fan out with 
                 # training model!
-                model_path = 'final_{}'.format(model_folder)
-                s3_obj = s3_metaflow_client.get(model_file)
-                print("Model retrieved from: {}".format(s3_obj.path))
-                with tarfile.open(s3_obj.path) as my_tar:
-                    my_tar.extractall(model_path)
-
+                print("Retrieving model from {}".format(model_path))
+                s3_obj = s3_metaflow_client.get(model_path)
+                my_tar = tarfile.open(s3_obj.path)
+                # debug
+                print(my_tar.getmembers())
+                my_tar.extractall()
+                my_tar.close()
+                # TODO: this is very clunky as we are implicitely relying on a model path like:
+                # s3://mfdemo-reno-s3-dev-uswe2/data/merlinFlow/311/{"BATCH_SIZE": 1024}_merlin_model.tar.gz
+                # to make sure we point Keras to the right folder,
+                # which is a combination of our target "local" folder hosting the untarred files
+                # and the original folder name, which follows a naming convention including the hyper
+                # settings.
+                model_path = model_path.split('/')[-1].replace('.tar.gz', '').strip()
+                print("Model local path: {}".format(model_path))
+                import glob
+                print(glob.glob("{}/*".format(model_path)))
+            
         return tf.keras.models.load_model(model_path)
 
     def get_items_topk_recommender_model(
@@ -443,7 +463,6 @@ class merlinFlow(FlowSpec):
         # load the model
         loaded_model = self.load_merlin_model(
             model_path=self.final_model_path,
-            model_folder=self.MODEL_FOLDER,
             is_cloud=self.IS_CLOUD
         )
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
