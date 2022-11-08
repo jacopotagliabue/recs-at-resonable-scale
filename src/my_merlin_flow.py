@@ -108,8 +108,10 @@ class merlinFlow(FlowSpec):
         # we need to check if Metaflow is running with remote (s3) data store or not
         from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
         print("DATASTORE_SYSROOT_S3: %s" % DATASTORE_SYSROOT_S3)
+        self.IS_CLOUD = True
         if DATASTORE_SYSROOT_S3 is None:
             print("ATTENTION: LOCAL DATASTORE ENABLED")
+            self.IS_CLOUD = False
         # check variables and connections are working fine
         assert os.environ['COMET_API_KEY'] and self.COMET_PROJECT_NAME
         assert int(self.ROW_SAMPLING)
@@ -232,8 +234,7 @@ class merlinFlow(FlowSpec):
             workflow.transform(cnt_dataset).to_parquet(output_path="{}/".format(label))
         # version the two folders prepared by NV tabular as tar files on s3
         # if the remote datastore is not enabled
-        from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
-        if DATASTORE_SYSROOT_S3 is not None:
+        if self.IS_CLOUD:
             with S3(run=self) as s3_metaflow_client:
                 self.folders_to_s3_file = upload_dataset_folders(
                     s3_client=s3_metaflow_client,
@@ -250,6 +251,21 @@ class merlinFlow(FlowSpec):
             #{ 'BATCH_SIZE': 4096 }
         ]]
         self.next(self.train_model, foreach='hypers_sets')
+
+    def get_folder(self, is_cloud=False):
+        from dataset_utils import get_dataset_folders
+        target_folder = ''
+        # read datasets folder from s3 if datastore is not local
+        if is_cloud:
+            target_folder = 'merlin/' 
+            with S3(run=self) as s3_metaflow_client:
+                local_paths = get_dataset_folders(
+                    s3_client=s3_metaflow_client,
+                    folders_to_s3_file=self.folders_to_s3_file,
+                    target_folder=target_folder
+                )
+
+        return target_folder, local_paths
 
     @environment(vars={
                     'EN_BATCH': os.getenv('EN_BATCH'),
@@ -274,22 +290,11 @@ class merlinFlow(FlowSpec):
         from comet_ml import Experiment
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
-        from dataset_utils import get_dataset_folders, tar_to_s3
-        from metaflow.metaflow_config import DATASTORE_SYSROOT_S3 
         # this is the CURRENT hyper param JSON in the fan-out
         # each copy of this step in the parallelization will have its own value
         self.hyper_string = self.input
         self.hypers = json.loads(self.hyper_string)
-        target_folder = ''
-        # read datasets folder from s3 if datastore is not local
-        if DATASTORE_SYSROOT_S3 is not None:
-            target_folder = 'merlin/' 
-            with S3(run=self) as s3_metaflow_client:
-                self.local_paths = get_dataset_folders(
-                    s3_client=s3_metaflow_client,
-                    folders_to_s3_file=self.folders_to_s3_file,
-                    target_folder=target_folder
-                )
+        target_folder, self.local_paths = self.get_folder(is_cloud=self.IS_CLOUD)
         train = Dataset('{}train/*.parquet'.format(target_folder))
         valid = Dataset('{}valid/*.parquet'.format(target_folder))
         print("Train dataset shape: {}, Validation: {}".format(
@@ -301,9 +306,10 @@ class merlinFlow(FlowSpec):
             api_key=os.getenv('COMET_API_KEY'), 
             project_name=self.COMET_PROJECT_NAME
             )
+        self.comet_experiment_key = experiment.get_key()
         experiment.add_tag(current.pathspec)
         experiment.log_parameters(self.hypers)
-        # train the model
+        # train the model and test it on validation set
         model = mm.TwoTowerModel(
             train.schema,
             query_tower=mm.MLPBlock([128, 64], no_activation_last_layer=True),
@@ -312,20 +318,78 @@ class merlinFlow(FlowSpec):
         )
         model.compile(optimizer="adam", run_eagerly=False, metrics=[mm.RecallAt(10), mm.NDCGAt(10)])
         model.fit(train, validation_data=valid, batch_size=self.hypers['BATCH_SIZE'], epochs=int(self.N_EPOCHS))
-        # test the model on validation set and store the results in a MF variable
         self.metrics = model.evaluate(valid, batch_size=1024, return_dict=True)
         print("\n\n====> Eval results: {}\n\n".format(self.metrics))
         # save the model locally and upload it to S3 if needed
-        model_folder = '{}_{}'.format(self.hyper_string, self.MODEL_FOLDER)
-        self.model_path = model_folder
-        model.save(self.model_path)
-        if DATASTORE_SYSROOT_S3 is not None:
+        self.model_path = self.save_merlin_model(
+            model,
+            hyper_string=self.hyper_string,
+            model_folder=self.MODEL_FOLDER,
+            is_cloud=self.IS_CLOUD
+        )
+        self.next(self.join_runs)
+
+    def save_merlin_model(
+        self,
+        model,
+        hyper_string: str,
+        model_folder: str,
+        is_cloud=False
+    ):
+        from dataset_utils import tar_to_s3
+
+        model_path = '{}_{}'.format(hyper_string, model_folder)
+        model.save(model_path)
+        if is_cloud:
             with S3(run=self) as s3_metaflow_client:
-                self.model_path, self.model_file = tar_to_s3(
-                    model_folder,
+                model_path, model_file = tar_to_s3(
+                    model_path,
                     s3_metaflow_client
                 )
-        self.next(self.join_runs)
+
+        return model_path
+
+
+    def load_merlin_model(
+        self,
+        model_path: str,
+        model_folder: str,
+        is_cloud=True
+    ):
+        import tensorflow as tf
+        import tarfile
+        
+        if is_cloud:
+            # recover the tar.gz file from the s3 path
+            model_file = model_path.split('/')[-1]
+            # if datastore is AWS, we need to retrieve the tar folder, and then extract to
+            # a local one, and point our variable to that!
+            with S3(run=self) as s3_metaflow_client:
+                # overwrite model path variable to be the final target folder
+                # instead of one of the many local ones from the fan out with 
+                # training model!
+                model_path = 'final_{}'.format(model_folder)
+                s3_obj = s3_metaflow_client.get(model_file)
+                print("Model retrieved from: {}".format(s3_obj.path))
+                with tarfile.open(s3_obj.path) as my_tar:
+                    my_tar.extractall(model_path)
+
+        return tf.keras.models.load_model(model_path)
+
+    def get_items_topk_recommender_model(
+        self,
+        train_dataset, 
+        schema, 
+        model, 
+        k: int
+    ):
+        from merlin.io.dataset import Dataset 
+        from merlin.schema.tags import Tags
+        item_features = schema.select_by_tag(Tags.ITEM).column_names
+        item_dataset = train_dataset.to_ddf()[item_features].drop_duplicates(subset=['article_id'], keep='last').compute()
+        item_dataset = Dataset(item_dataset)
+
+        return model.to_top_k_recommender(item_dataset, k=k)
 
     @step
     def join_runs(self, inputs):
@@ -334,51 +398,28 @@ class merlinFlow(FlowSpec):
         """
         # merge results from runs with different parameters (key is hyper settings as a string)
         self.model_paths = { inp.hyper_string: inp.model_path for inp in inputs}
-        self.model_files = { inp.hyper_string: inp.model_file for inp in inputs}
+        self.experiment_keys = { inp.hyper_string: inp.comet_experiment_key for inp in inputs}
         self.results_from_runs = { inp.hyper_string: inp.metrics[self.VALIDATION_METRIC] for inp in inputs}
         print("Current results: {}".format(self.results_from_runs))
          # pick one according to some logic, e.g. higher VALIDATION_METRIC
         self.best_model, self_best_result = sorted(self.results_from_runs.items(), key=lambda x: x[1], reverse=True)[0]
-        print("Best model is: {}, path is {}, file is {}".format(
+        print("Best model is: {}, path is {}".format(
             self.best_model,
-            self.model_paths[self.best_model],
-            self.model_files[self.best_model]
+            self.model_paths[self.best_model]
             ))
         # assign the variable for the "final" (the best) model path in S3 and its corresponding name
         self.final_model_path = self.model_paths[self.best_model]
-        self.final_model_file = self.model_files[self.best_model]
-        # pick a final mapping for metadata
-        self.final_item_id_2_meta = inputs[0].item_id_2_meta
-        # next, deploy
+        # pick a final mapping for metadata and other service variables
+        self.item_id_2_meta = inputs[0].item_id_2_meta
+        self.id_2_item_id = inputs[0].id_2_item_id
+        self.folders_to_s3_file = inputs[0].folders_to_s3_file
+        self.IS_CLOUD = inputs[0].IS_CLOUD
+        # for the best comet experiment, we store the key to upload a json file
+        # to explore predictions!
+        self.experiment_key = self.experiment_keys[self.best_model]
+        # next, for the best model do more testing (RecList!)
+        # and produce the final list of predictions to be cached
         self.next(self.model_testing)
-
-    def log_predictions_to_comet(
-        self,
-        h_m_shoppers,
-        best_predictions,
-        item_id_2_meta
-    ):
-        # log some predictions as well, for the first X shoppers
-        n_shoppers = 10
-        predictions_to_log = []
-        for shopper in h_m_shoppers[:n_shoppers]:
-            cnt_predictions = best_predictions.get(shopper, None)
-            # there should be preds, but check to be extra sure
-            if not cnt_predictions:
-                continue
-            # append predictions one by one
-            for p in cnt_predictions['items']:
-                product_type = item_id_2_meta[p]['product_group_name'] if p in item_id_2_meta else 'NO_GROUP' 
-                predictions_to_log.append({
-                    "user_id": shopper,
-                    "product_id": p,
-                    # TODO: don't super like how meta-data are handled here
-                    "product_type": product_type,
-                    # TODO: log score from two-tower model
-                    "score": 1.0
-                })
-
-        return predictions_to_log
 
     @enable_decorator(batch(
         #gpu=1, 
@@ -392,38 +433,22 @@ class merlinFlow(FlowSpec):
         Test the generalization abilities of the best model through the held-out set...
         and RecList Beta (Forthcoming!)
         """
-        from metaflow.metaflow_config import DATASTORE_SYSROOT_S3
-        import tarfile
         from merlin.io.dataset import Dataset
-        import tensorflow as tf
         import merlin.models.tf as mm
-        from dataset_utils import get_dataset_folders
-        from model_utils import get_items_topk_recommender_model
-         # read datasets folder from s3 if datastore is not local
-        target_folder = ''
-        if DATASTORE_SYSROOT_S3 is not None:
-            target_folder = 'merlin/' 
-            with S3(run=self) as s3_metaflow_client:
-                self.local_paths = get_dataset_folders(
-                    s3_client=s3_metaflow_client,
-                    folders_to_s3_file=self.folders_to_s3_file,
-                    target_folder=target_folder
-                )
+        from dataset_utils import prepare_predictions_for_comet_panel
+         # get folders
+        target_folder, self.local_paths = self.get_folder(is_cloud=self.IS_CLOUD)
         train = Dataset('{}train/*.parquet'.format(target_folder))
         test = Dataset('{}test/*.parquet'.format(target_folder))
-        # read model folder from s3 if datastore is not local
-        model_path = self.final_model_path
-        if DATASTORE_SYSROOT_S3 is not None:
-            with S3(run=self) as s3_metaflow_client:
-                s3_obj = s3_metaflow_client.get(self.final_model_file)
-                my_tar = tarfile.open(s3_obj.path)
-                my_tar.extractall(self.MODEL_FOLDER)
-                model_path = self.MODEL_FOLDER
-                my_tar.close()
-        loaded_model = tf.keras.models.load_model(model_path)
+        # load the model
+        loaded_model = self.load_merlin_model(
+            model_path=self.final_model_path,
+            model_folder=self.MODEL_FOLDER,
+            is_cloud=self.IS_CLOUD
+        )
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
-        topk_rec_model = get_items_topk_recommender_model(
+        topk_rec_model = self.get_items_topk_recommender_model(
             train, train.schema, loaded_model, k=int(self.TOP_K)
         )
         test_dataset = mm.Loader(test, batch_size=1024, shuffle=False)
@@ -439,38 +464,53 @@ class merlinFlow(FlowSpec):
         print("Example target shoppers: ", self.h_m_shoppers[:3])
         self.target_items = test_dataset.data.to_ddf().compute()['article_id']
         print("Example target items: ", self.target_items[:3])
-        sku_convert = lambda x: [str(self.id_2_item_id[_]) for _ in x]
+        self.best_predictions = self.serialize_predictions(
+            self.h_m_shoppers,
+            self.id_2_item_id,
+            self.raw_predictions,
+            self.target_items,
+            n_rows
+        )
+        print("Example target predictions", self.best_predictions[self.h_m_shoppers[0]])
+        # log the predictions and close experiment tracking
+        prepare_predictions_for_comet_panel(
+            self.h_m_shoppers,
+            self.best_predictions,
+            self.item_id_2_meta,
+            os.getenv('COMET_API_KEY'),
+            self.experiment_key
+        )
+        # debug, if rows > len(self.predictions), same user appear twice in test set
+        print(n_rows, len(self.best_predictions))
+        #TODO: add RecList tests, for now just go the last step
+        self.next(self.export_to_app)
+
+    def serialize_predictions(
+        self,
+        h_m_shoppers,
+        id_2_item_id,
+        raw_predictions,
+        target_items,
+        n_rows
+    ):
+        """
+        Convert raw predictions to a dictionary user -> items for easy re-use 
+        later in the pipeline (e.g. dump the predicted items to a cache!)
+        """
+        sku_convert = lambda x: [str(id_2_item_id[_]) for _ in x]
         predictions = {}
         for _ in range(n_rows):
             # don't overwite if we already have a prediction for this user
-            cnt_user = self.h_m_shoppers[_]
-            cnt_raw_preds = self.raw_predictions[_].tolist()
-            cnt_target = self.target_items[_]
+            cnt_user = h_m_shoppers[_]
+            cnt_raw_preds = raw_predictions[_].tolist()
+            cnt_target = target_items[_]
             if cnt_user not in predictions:
                 predictions[cnt_user] = {
                     'items': sku_convert(cnt_raw_preds),
                     'target': sku_convert([cnt_target])[0]
-                } 
-        # version the predictions
-        self.best_predictions = predictions
-        print("Example target predictions", self.best_predictions[self.h_m_shoppers[0]])
-        # log the predictions and close experiment tracking
-       # predictions_to_log = log_predictions_to_comet(
-       #     self.h_m_shoppers,
-       #     self.best_predictions,
-       #     self.final_item_id_2_meta
-       # )
-        # linking prediction to the experiment for visualization
-       # experiment = Experiment(
-       #     api_key=os.getenv('COMET_API_KEY'), 
-       #     project_name=self.COMET_PROJECT_NAME
-       #     )
-       # experiment.log_asset_data(predictions_to_log, name='predictions.json')
-       # experiment.end()
-        # debug, if rows > len(self.predictions), same user appear twice in test set
-        print(n_rows, len(self.predictions))
-        #TODO: add RecList tests, for now just go the last step
-        self.next(self.export_to_app)
+                }
+
+        return predictions
 
     @step
     def export_to_app(self):
@@ -497,9 +537,9 @@ class merlinFlow(FlowSpec):
             max_preds = 100
             for shopper, preds in self.best_predictions.items():
                 target_item = preds['target']
-                target_img_url = self.final_item_id_2_meta[target_item]['s3_url']
+                target_img_url = self.item_id_2_meta[target_item]['s3_url']
                 top_pred = preds['items'][0]
-                predicted_img_url = self.final_item_id_2_meta[top_pred]['s3_url']
+                predicted_img_url = self.item_id_2_meta[top_pred]['s3_url']
                 if not target_img_url or not predicted_img_url:
                     continue
                 new_row = {
@@ -508,7 +548,7 @@ class merlinFlow(FlowSpec):
                     'predicted_item': top_pred,
                     'target_image_url': target_img_url,
                     'predicted_image_url': predicted_img_url,
-                    'product_type': self.final_item_id_2_meta[target_item]['product_group_name']
+                    'product_type': self.item_id_2_meta[target_item]['product_group_name']
                 }
                 rows.append(new_row)
                 if len(rows) >= max_preds:

@@ -53,3 +53,40 @@ def get_dataset_folders(
         my_tar.close()
 
     return local_paths
+
+
+def prepare_predictions_for_comet_panel(
+        h_m_shoppers,
+        best_predictions,
+        item_id_2_meta,
+        api_key,
+        experiment_key
+    ):
+        from comet_ml import ExistingExperiment
+        # log some predictions as well, for the first X shoppers
+        n_shoppers = 10
+        predictions_to_log = []
+        for shopper in h_m_shoppers[:n_shoppers]:
+            cnt_predictions = best_predictions.get(shopper, None)
+            # there should be preds, but check to be extra sure
+            if not cnt_predictions:
+                continue
+            # append predictions one by one
+            for p in cnt_predictions['items']:
+                product_type = item_id_2_meta[p]['product_group_name'] if p in item_id_2_meta else 'NO_GROUP' 
+                predictions_to_log.append({
+                    "user_id": shopper,
+                    "product_id": p,
+                    # TODO: improve how meta-data are handled here
+                    "product_type": product_type,
+                    # TODO: log score from two-tower model
+                    "score": 1.0
+                })
+        # linking prediction to the experiment for visualization
+        experiment = ExistingExperiment(
+            api_key=api_key,
+            experiment_key= experiment_key
+        )
+        experiment.log_asset_data(predictions_to_log, name='predictions.json')
+
+        return predictions_to_log
