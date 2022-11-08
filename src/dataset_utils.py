@@ -19,9 +19,9 @@ def tar_to_s3(
         data = in_file.read()
         url = s3_client.put(local_tar_name, data)
         print("Folder saved at: {}".format(url))
-    # debug
-    my_tar = tarfile.open(local_tar_name)
-    print("Tar members: ", my_tar.getmembers())
+    # debug: what is exactly went into the tar? ;-)
+    # my_tar = tarfile.open(local_tar_name)
+    # print("Tar members: ", my_tar.getmembers())
 
     return url, local_tar_name
 

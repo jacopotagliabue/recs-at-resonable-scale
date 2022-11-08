@@ -291,6 +291,7 @@ class merlinFlow(FlowSpec):
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
         from merlin.schema.tags import Tags
+        from merlin.models.tf.outputs.base import DotProduct
         import tensorflow as tf
         # this is the CURRENT hyper param JSON in the fan-out
         # each copy of this step in the parallelization will have its own value
@@ -318,7 +319,16 @@ class merlinFlow(FlowSpec):
         item_schema = train.schema.select_by_tag(Tags.ITEM)
         item_inputs = mm.InputBlockV2(item_schema,)
         candidate = mm.Encoder(item_inputs, mm.MLPBlock([128, 64]))
-        model = mm.TwoTowerModelV2(query, candidate) # pylint: disable=no-member
+        model = mm.RetrievalModelV2(
+        query=query,
+        candidate=candidate,
+        output=mm.ContrastiveOutput(
+            to_call=DotProduct(),
+            negative_samplers="in-batch",
+            schema=item_schema.select_by_tag(Tags.ITEM_ID),
+            candidate_name="item",
+            )
+        )
         opt = tf.keras.optimizers.Adagrad(learning_rate=0.01)
         model.compile(optimizer=opt, run_eagerly=False, 
                     metrics=[mm.RecallAt(10), 
@@ -399,17 +409,16 @@ class merlinFlow(FlowSpec):
     def get_items_topk_recommender_model(
         self,
         train_dataset, 
-        schema, 
         model, 
         k: int
     ):
-        from merlin.io.dataset import Dataset 
+        from merlin.models.utils.dataset import unique_rows_by_features
         from merlin.schema.tags import Tags
-        item_features = schema.select_by_tag(Tags.ITEM).column_names
-        item_dataset = train_dataset.to_ddf()[item_features].drop_duplicates(subset=['article_id'], keep='last').compute()
-        item_dataset = Dataset(item_dataset)
+        candidate_features = unique_rows_by_features(train_dataset, Tags.ITEM, Tags.ITEM_ID)
+        topk_model = model.to_top_k_encoder(candidate_features, k=k, batch_size=128)
+        topk_model.compile(run_eagerly=False)
 
-        return model.to_top_k_recommender(item_dataset, k=k)
+        return topk_model
 
     @step
     def join_runs(self, inputs):
@@ -468,7 +477,7 @@ class merlinFlow(FlowSpec):
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
         topk_rec_model = self.get_items_topk_recommender_model(
-            train, train.schema, loaded_model, k=int(self.TOP_K)
+            train, loaded_model, k=int(self.TOP_K)
         )
         test_dataset = mm.Loader(test, batch_size=1024, shuffle=False)
         # predict returns a tuple with two elements, scores and product IDs: we get the IDs only
