@@ -27,7 +27,7 @@ except:
     print("No dotenv package")
 
 
-class merlinFlow(FlowSpec):
+class myMerlinFlow(FlowSpec):
 
     ### MERLIN PARAMETERS ###
 
@@ -291,7 +291,6 @@ class merlinFlow(FlowSpec):
         import merlin.models.tf as mm
         from merlin.io.dataset import Dataset 
         from merlin.schema.tags import Tags
-        from merlin.models.tf.outputs.base import DotProduct
         import tensorflow as tf
         # this is the CURRENT hyper param JSON in the fan-out
         # each copy of this step in the parallelization will have its own value
@@ -317,25 +316,21 @@ class merlinFlow(FlowSpec):
         user_inputs = mm.InputBlockV2(user_schema)
         query = mm.Encoder(user_inputs, mm.MLPBlock([128, 64]))
         item_schema = train.schema.select_by_tag(Tags.ITEM)
-        item_inputs = mm.InputBlockV2(item_schema,)
+        item_inputs = mm.InputBlockV2(
+                item_schema,)
         candidate = mm.Encoder(item_inputs, mm.MLPBlock([128, 64]))
-        model = mm.RetrievalModelV2(
-        query=query,
-        candidate=candidate,
-        output=mm.ContrastiveOutput(
-            to_call=DotProduct(),
-            negative_samplers="in-batch",
-            schema=item_schema.select_by_tag(Tags.ITEM_ID),
-            candidate_name="item",
-            )
-        )
+        model = mm.TwoTowerModelV2(query, candidate)
         opt = tf.keras.optimizers.Adagrad(learning_rate=0.01)
         model.compile(optimizer=opt, run_eagerly=False, 
                     metrics=[mm.RecallAt(10), 
                             mm.NDCGAt(10)
                             ],
                     )
-        model.fit(train, validation_data=valid, batch_size=self.hypers['BATCH_SIZE'], epochs=int(self.N_EPOCHS))
+        model.fit(
+            train, 
+            validation_data=valid, 
+            batch_size=self.hypers['BATCH_SIZE'], 
+            epochs=int(self.N_EPOCHS))
         self.metrics = model.evaluate(valid, batch_size=1024, return_dict=True)
         print("\n\n====> Eval results: {}\n\n".format(self.metrics))
         # save the model locally and upload it to S3 if needed
@@ -644,4 +639,4 @@ class merlinFlow(FlowSpec):
 
 
 if __name__ == '__main__':
-    merlinFlow()
+    myMerlinFlow()

@@ -63,7 +63,7 @@ _Adding a Streamlit app for error analysis_
 
 _A note on containers_
 
-At the moment of writing, Merlin does not have an official ECR, so we pulled `nvcr.io/nvidia/merlin/merlin-tensorflow:22.10` and slightly changed the entry point to work with Metaflow / AWS Batch. The `docker` folder contains the relevant files - the current flow uses a public ECR repository we prepared on our AWS when running training in _BATCH_; if you wish to use your own ECR or the repo above becomes unavailable for whatever reason, you can just change the relevant `image` parameter in the flow (note: you need to register for a free NVIDIA account first to be able to pull from nvcr).
+At the moment of writing, Merlin does not have an official ECR, so we pulled `nvcr.io/nvidia/merlin/merlin-tensorflow:22.11` and slightly changed the entry point to work with Metaflow / AWS Batch. The `docker` folder contains the relevant files - the current flow uses a public ECR repository we prepared on our AWS when running training in _BATCH_; if you wish to use your own ECR or the repo above becomes unavailable for whatever reason, you can just change the relevant `image` parameter in the flow (note: you need to register for a free NVIDIA account first to be able to pull from nvcr).
 
 ## Setup
 

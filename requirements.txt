@@ -9,5 +9,5 @@ pyarrow==8.0.0
 nvtabular==1.2.2
 numpy==1.22
 merlin-core==0.8.0
-merlin-models==0.9.0
+merlin-models==0.10.0
 tensorflow==2.9.1
