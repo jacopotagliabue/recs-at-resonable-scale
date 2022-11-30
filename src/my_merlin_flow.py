@@ -252,7 +252,6 @@ class myMerlinFlow(FlowSpec):
                 })
     @enable_decorator(batch(
         #gpu=1, 
-        #memory=80000, 
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
     # NOTE: updating requests will just suppress annoying warnings
@@ -396,9 +395,27 @@ class myMerlinFlow(FlowSpec):
 
         return predictions_to_log
 
+    def load_merlin_model(
+        self,
+        dataset,
+        path
+    ):
+        import tensorflow as tf
+        import merlin.models.tf as mm
+        loaded_model = tf.keras.models.load_model(path)
+        # this is necessary when re-loading the model, before building the top K
+        _ = loaded_model(mm.sample_batch(dataset, batch_size=128, include_targets=False))
+        # debug
+        print("Model re-loaded!")
+
+        return loaded_model
+
+    @environment(vars={
+                    'EN_BATCH': os.getenv('EN_BATCH'),
+                    'COMET_API_KEY': os.getenv('COMET_API_KEY')
+                })
     @enable_decorator(batch(
         #gpu=1, 
-        #memory=80000, 
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'})
@@ -408,24 +425,18 @@ class myMerlinFlow(FlowSpec):
         """
         Test the generalization abilities of the best model through the held-out set...
         and RecList Beta (Forthcoming!)
-
-
         """
         from merlin.io.dataset import Dataset
         import merlin.models.tf as mm
         import tensorflow as tf
-        # loading back datasets and the the model for final testing and 
-        # saving predictions
+        # loading back datasets and the the model for final testing
         train = Dataset('merlin/train/*.parquet')
         test = Dataset('merlin/test/*.parquet')
         print("Train dataset shape: {}, Test: {}".format(
             train.to_ddf().compute().shape,
             test.to_ddf().compute().shape
             ))
-        loaded_model = tf.keras.models.load_model(self.final_model_path)
-        # this is necessary when re-loading the model, before building the top K
-        _ = loaded_model(mm.sample_batch(test, batch_size=128, include_targets=False))
-        print("Model re-loaded!")
+        loaded_model = self.load_merlin_model(test, self.final_model_path)
         # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         # first, we provide train set as a corpus
         topk_rec_model = self.get_items_topk_recommender_model(train, loaded_model, k=int(self.TOP_K))
@@ -503,8 +514,10 @@ class myMerlinFlow(FlowSpec):
 
         If the EXPORT_TO_APP env is not 1, we skip this step and go to deployment.
         """
-        # if the flag is specified, we prepare a dataframe for the app
-        if os.environ.get('EXPORT_TO_APP', None) == '1':
+        if not os.environ.get('EXPORT_TO_APP', None) == '1':
+            print("Skipping exporting data to the CLIP-based Streamlit app.")
+        else:
+            # if the flag is specified, we prepare a dataframe for the app
             import pandas as pd
             from app_utils import encode_image # pylint: disable=import-error
             import torch # pylint: disable=import-error
