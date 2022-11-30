@@ -1,4 +1,5 @@
 metaflow==2.5.0
+metaflow-magicdir==0.0.4
 snowflake-connector-python==2.7.4
 python-dotenv==0.19.2
 comet-ml==3.26.0
