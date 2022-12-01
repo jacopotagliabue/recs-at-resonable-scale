@@ -214,6 +214,8 @@ class myMerlinFlow(FlowSpec):
         # go to the next step for NV tabular data
         self.next(self.build_workflow)
     
+    # NOTE: we use the magicdir package (https://github.com/outerbounds/metaflow_magicdir)
+    # to simplify moving the parquet files that Merlin needs / consumes across steps
     @magicdir(dir='merlin')
     @step
     def build_workflow(self):
@@ -242,7 +244,7 @@ class myMerlinFlow(FlowSpec):
         self.id_2_item_id = { idx:_ for idx, _ in enumerate(items_unique_ids) }
         # sets of hypers - we serialize them to a string and pass them to the foreach below
         self.hypers_sets = [json.dumps(_) for _ in [
-            { 'BATCH_SIZE': 1024 }, #{ 'BATCH_SIZE': 4096 }
+            { 'BATCH_SIZE': 16384 }, #{ 'BATCH_SIZE': 4096 }
         ]]
         self.next(self.train_model, foreach='hypers_sets')
 
@@ -291,8 +293,7 @@ class myMerlinFlow(FlowSpec):
         user_inputs = mm.InputBlockV2(user_schema)
         query = mm.Encoder(user_inputs, mm.MLPBlock([128, 64]))
         item_schema = train.schema.select_by_tag(Tags.ITEM)
-        item_inputs = mm.InputBlockV2(
-                item_schema,)
+        item_inputs = mm.InputBlockV2(item_schema,)
         candidate = mm.Encoder(item_inputs, mm.MLPBlock([128, 64]))
         model = mm.TwoTowerModelV2(query, candidate)
         opt = tf.keras.optimizers.Adagrad(learning_rate=0.01)
@@ -428,6 +429,7 @@ class myMerlinFlow(FlowSpec):
         test = Dataset('merlin/test/*.parquet')
         loaded_model = self.load_merlin_model(test, self.final_model_path)
         topk_rec_model = self.get_items_topk_recommender_model(train, loaded_model, k=int(self.TOP_K))
+        # TODO: fix evaluation with loaded model here
         #self.test_metrics = topk_rec_model.evaluate(test, batch_size=1024, return_dict=True)
         # print("\n\n====> Test results: {}\n\n".format(self.test_metrics))
         #TODO: add RecList tests!

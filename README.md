@@ -14,7 +14,7 @@ As a use case, we pick a popular RecSys challenge, user-item recommendations for
 Our goal is to build a pipeline with all the necessary real-world ingredients:
 
 * dataOps with Snowflake and dbt;
-* training Merlin models on GPUs, in parallel, leveraging Metaflow;
+* training Merlin models (possibly on GPUs), in parallel, leveraging Metaflow;
 * advanced testing with Reclist (_FORTHCOMING_);
 * serving cached prediction through FaaS and SaaS (AWS Lambda, DynamoDb, the serverless framework);
 * error analysis and debugging with a Streamlit app (_experimental feature_).
@@ -157,7 +157,6 @@ Cd into the `app` folder, and run `streamlit run pred_inspector.py` (make sure M
 
 ### Where to go from here (either with us or by yourself)?
 
-* Supporting both "local" and "AWS" Metaflow makes the code a bit cumbersome everytime we need to resort to manual serialization of datasets and model files. No obvious trick exists to solve this as some of the artifacts are files, some are folders etc., but of course, once you pick your poison (for us, AWS), you could drastically simplify the flow for less pedagogical use cases;
 * Improving error analysis and evaluation: improvements will come automatically from [RecList](https://reclist.io/);
 * Making sure dependencies are easy to adjust depending on setup - e.g. dask_cudf vs pandas depending on your GPU set up;
 * Supporting other recSys use cases, possibly coming with more complex deployment options (e.g. Triton on Sagemaker).
