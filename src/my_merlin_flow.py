@@ -354,8 +354,7 @@ class myMerlinFlow(FlowSpec):
         # for the best comet experiment, we store the key to upload a json file
         # to explore predictions!
         self.experiment_key = self.experiment_keys[self.best_model]
-        # next, for the best model do more testing (RecList!)
-        # and produce the final list of predictions to be cached
+        # next, for the best model do more testing  
         self.next(self.model_testing)
 
     def prepare_predictions_for_comet_panel(
@@ -410,6 +409,33 @@ class myMerlinFlow(FlowSpec):
 
         return loaded_model
 
+    @environment(vars={'EN_BATCH': os.getenv('EN_BATCH')})
+    @enable_decorator(batch(
+        #gpu=1, 
+        image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
+        flag=os.getenv('EN_BATCH'))
+    @magicdir(dir='merlin')
+    @step
+    def model_testing(self):
+        """
+        Test the generalization abilities of the best model through the held-out set...
+        and RecList Beta (Forthcoming!)
+        """
+        from merlin.io.dataset import Dataset
+        import merlin.models.tf as mm
+        # loading back datasets and the model for final testing
+        train = Dataset('merlin/train/*.parquet')
+        test = Dataset('merlin/test/*.parquet')
+        loaded_model = self.load_merlin_model(test, self.final_model_path)
+        topk_rec_model = self.get_items_topk_recommender_model(train, loaded_model, k=int(self.TOP_K))
+        #self.test_metrics = topk_rec_model.evaluate(test, batch_size=1024, return_dict=True)
+        # print("\n\n====> Test results: {}\n\n".format(self.test_metrics))
+        #TODO: add RecList tests!
+        # if tests are all good (you could add a flag!) 
+        # we can now produce the final list of predictions to be cached 
+        # and then served to the shoppers
+        self.next(self.saving_predictions)
+
     @environment(vars={
                     'EN_BATCH': os.getenv('EN_BATCH'),
                     'COMET_API_KEY': os.getenv('COMET_API_KEY')
@@ -421,32 +447,25 @@ class myMerlinFlow(FlowSpec):
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'})
     @magicdir(dir='merlin')
     @step
-    def model_testing(self):
+    def saving_predictions(self):
         """
-        Test the generalization abilities of the best model through the held-out set...
-        and RecList Beta (Forthcoming!)
+        Run predictions on a target dataset of shoppers (in this case, the testing dataset) and store the predictions
+        for the experiment dashboard and the cache downstream.
         """
         from merlin.io.dataset import Dataset
         import merlin.models.tf as mm
-        import tensorflow as tf
-        # loading back datasets and the the model for final testing
+        # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
         train = Dataset('merlin/train/*.parquet')
         test = Dataset('merlin/test/*.parquet')
-        print("Train dataset shape: {}, Test: {}".format(
-            train.to_ddf().compute().shape,
-            test.to_ddf().compute().shape
-            ))
         loaded_model = self.load_merlin_model(test, self.final_model_path)
-        # export ONLY the users in the test set to simulate the set of shoppers we need to recommend items to
-        # first, we provide train set as a corpus
         topk_rec_model = self.get_items_topk_recommender_model(train, loaded_model, k=int(self.TOP_K))
         test_dataset = mm.Loader(test, batch_size=1024, shuffle=False)
         # predict returns a tuple with two elements, scores and product IDs: we get the IDs only
         self.raw_predictions = topk_rec_model.predict(test_dataset)[1]
-        # check we have as many predictions as we have shoppers in the test set
         n_rows = self.raw_predictions.shape[0]
         self.target_shoppers = test_dataset.data.to_ddf().compute()['customer_id']
         print("Inspect the shopper object for debugging...{}".format(type(self.target_shoppers)))
+        # check we have as many predictions as we have shoppers in the test set
         assert n_rows == len(self.target_shoppers)
         # map predictions to a final dictionary, with the actual H and M IDs for users and products
         self.h_m_shoppers = [str(self.id_2_user_id[_]) for _ in self.target_shoppers.to_numpy().tolist()]
@@ -471,7 +490,6 @@ class myMerlinFlow(FlowSpec):
         )
         # debug, if rows > len(self.predictions), same user appear twice in test set
         print(n_rows, len(self.best_predictions))
-        #TODO: add RecList tests, for now just go the last step
         self.next(self.export_to_app)
 
     def serialize_predictions(
