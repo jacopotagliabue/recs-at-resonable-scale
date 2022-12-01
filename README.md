@@ -15,9 +15,10 @@ Our goal is to build a pipeline with all the necessary real-world ingredients:
 
 * dataOps with Snowflake and dbt;
 * training Merlin models (possibly on GPUs), in parallel, leveraging Metaflow;
+* experiment and parameter tracking;
 * advanced testing with Reclist (_FORTHCOMING_);
 * serving cached prediction through FaaS and SaaS (AWS Lambda, DynamoDb, the serverless framework);
-* error analysis and debugging with a Streamlit app (_experimental feature_).
+* error analysis and debugging with a Streamlit app.
 
 At a quick glance, this is what we are building:
 

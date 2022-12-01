@@ -219,6 +219,10 @@ class myMerlinFlow(FlowSpec):
     @magicdir(dir='merlin')
     @step
     def build_workflow(self):
+        """
+        Use NVTabular to transform the original data into the final dataframes for training,
+        validation, testing.
+        """
         from workflow_builder import get_nvt_workflow, read_to_dataframe # pylint: disable=import-error
         import pandas as pd
         # TODO: find a way to execute dask_cudf when possible and pandas when not
