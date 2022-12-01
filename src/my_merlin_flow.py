@@ -13,7 +13,7 @@ Please check the README and the additional material for the relevant background 
 
 """
 
-from metaflow import FlowSpec, step, batch, S3, Parameter, current, Run, environment
+from metaflow import FlowSpec, step, batch, Parameter, current, environment
 from custom_decorators import enable_decorator, pip
 import os
 import json
@@ -25,6 +25,8 @@ try:
     from metaflow_magicdir import magicdir
     load_dotenv(verbose=True, dotenv_path='.env')
 except:
+    # for remote execution we need to install this before anything else
+    # or Python will throw an "undefined decorator" error!
     os.system('pip install metaflow-magicdir==0.0.4')
     from metaflow_magicdir import magicdir
     print("Imported magic folder!")
