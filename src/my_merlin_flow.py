@@ -260,6 +260,7 @@ class myMerlinFlow(FlowSpec):
                 })
     @enable_decorator(batch(
         #gpu=1, 
+        memory=24000,
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
     # NOTE: updating requests will just suppress annoying warnings
@@ -419,6 +420,7 @@ class myMerlinFlow(FlowSpec):
     @environment(vars={'EN_BATCH': os.getenv('EN_BATCH')})
     @enable_decorator(batch(
         #gpu=1, 
+        memory=24000,
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
     @magicdir(dir='merlin')
@@ -434,10 +436,11 @@ class myMerlinFlow(FlowSpec):
         train = Dataset('merlin/train/*.parquet')
         test = Dataset('merlin/test/*.parquet')
         loaded_model = self.load_merlin_model(test, self.final_model_path)
-        topk_rec_model = self.get_items_topk_recommender_model(train, loaded_model, k=int(self.TOP_K))
-        # TODO: fix evaluation with loaded model here
-        #self.test_metrics = topk_rec_model.evaluate(test, batch_size=1024, return_dict=True)
-        # print("\n\n====> Test results: {}\n\n".format(self.test_metrics))
+        topk_rec_model = self.get_items_topk_recommender_model(test, loaded_model, k=int(self.TOP_K))
+        # extract the target item id from the inputs
+        test_loader = mm.Loader(test, batch_size=1024, transform=mm.ToTarget(test.schema, "item_id"))
+        self.test_metrics = topk_rec_model.evaluate(test_loader, batch_size=1024, return_dict=True)
+        print("\n\n====> Test results: {}\n\n".format(self.test_metrics))
         #TODO: add RecList tests!
         # if tests are all good (you could add a flag!) 
         # we can now produce the final list of predictions to be cached 
