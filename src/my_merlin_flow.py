@@ -432,13 +432,14 @@ class myMerlinFlow(FlowSpec):
         """
         from merlin.io.dataset import Dataset
         import merlin.models.tf as mm
+        from merlin.schema import Tags
         # loading back datasets and the model for final testing
         train = Dataset('merlin/train/*.parquet')
         test = Dataset('merlin/test/*.parquet')
         loaded_model = self.load_merlin_model(test, self.final_model_path)
         topk_rec_model = self.get_items_topk_recommender_model(test, loaded_model, k=int(self.TOP_K))
         # extract the target item id from the inputs
-        test_loader = mm.Loader(test, batch_size=1024, transform=mm.ToTarget(test.schema, "item_id"))
+        test_loader = mm.Loader(test, batch_size=1024, transform=mm.ToTarget(test.schema, Tags.ITEM_ID))
         self.test_metrics = topk_rec_model.evaluate(test_loader, batch_size=1024, return_dict=True)
         print("\n\n====> Test results: {}\n\n".format(self.test_metrics))
         #TODO: add RecList tests!
