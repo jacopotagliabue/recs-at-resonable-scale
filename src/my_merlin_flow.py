@@ -96,7 +96,7 @@ class myMerlinFlow(FlowSpec):
     TOP_K = Parameter(
         name='top_k',
         help='Number of products to recommend for a giver shopper',
-        default='5'
+        default='10'
     )
 
     @step
@@ -307,7 +307,7 @@ class myMerlinFlow(FlowSpec):
         model.compile(
             optimizer=opt, 
             run_eagerly=False, 
-            metrics=[mm.RecallAt(10), mm.NDCGAt(10)],)
+            metrics=[mm.RecallAt(int(self.TOP_K)), mm.NDCGAt(int(self.TOP_K))],)
         model.fit(
             train, 
             validation_data=valid, 
