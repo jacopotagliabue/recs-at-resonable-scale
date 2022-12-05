@@ -3,7 +3,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 ## Overview
 
-*November 2022*: this is a WIP, come back often for updates and a blog post!
+*December 2022*: aside from behavioral testing, the ML pipeline is now completed. Blog post coming soon!
 
 _This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
