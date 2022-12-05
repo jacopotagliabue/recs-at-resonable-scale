@@ -14,7 +14,7 @@ Please check the README and the additional material for the relevant background 
 """
 
 from metaflow import FlowSpec, step, batch, Parameter, current, environment
-from custom_decorators import enable_decorator, pip
+from custom_decorators import enable_decorator, pip, magicdir
 import os
 import json
 from datetime import datetime
@@ -22,14 +22,9 @@ from datetime import datetime
 
 try:
     from dotenv import load_dotenv
-    from metaflow_magicdir import magicdir
     load_dotenv(verbose=True, dotenv_path='.env')
 except:
-    # for remote execution we need to install this before anything else
-    # or Python will throw an "undefined decorator" error!
-    os.system('pip install metaflow-magicdir==0.0.4')
-    from metaflow_magicdir import magicdir
-    print("Imported magic folder!")
+    print("No dot env!")
 
 
 class myMerlinFlow(FlowSpec):
@@ -218,7 +213,7 @@ class myMerlinFlow(FlowSpec):
     
     # NOTE: we use the magicdir package (https://github.com/outerbounds/metaflow_magicdir)
     # to simplify moving the parquet files that Merlin needs / consumes across steps
-    @magicdir(dir='merlin')
+    @magicdir
     @step
     def build_workflow(self):
         """
@@ -265,7 +260,7 @@ class myMerlinFlow(FlowSpec):
         flag=os.getenv('EN_BATCH'))
     # NOTE: updating requests will just suppress annoying warnings
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'}) 
-    @magicdir(dir='merlin')
+    @magicdir
     @step
     def train_model(self):
         """
@@ -423,7 +418,7 @@ class myMerlinFlow(FlowSpec):
         memory=24000,
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
-    @magicdir(dir='merlin')
+    @magicdir
     @step
     def model_testing(self):
         """
@@ -456,7 +451,7 @@ class myMerlinFlow(FlowSpec):
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'})
-    @magicdir(dir='merlin')
+    @magicdir
     @step
     def saving_predictions(self):
         """
