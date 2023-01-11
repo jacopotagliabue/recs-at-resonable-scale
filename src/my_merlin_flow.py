@@ -248,7 +248,7 @@ class myMerlinFlow(FlowSpec):
         # batch size
         batch_sizes = [ 16384, 4096]
         # learning rate
-        learning_rates = [0.01, 0.02]
+        learning_rates = [0.04, 0.02]
         grid_search = []
         for params in itertools.product(batch_sizes, learning_rates):
             grid_search.append({
