@@ -222,6 +222,7 @@ class myMerlinFlow(FlowSpec):
         """
         from workflow_builder import get_nvt_workflow, read_to_dataframe # pylint: disable=import-error
         import pandas as pd
+        import itertools
         # TODO: find a way to execute dask_cudf when possible and pandas when not
         # import dask as dask, dask_cudf  # pylint: disable=import-error
         import nvtabular as nvt # pylint: disable=import-error
@@ -243,10 +244,21 @@ class myMerlinFlow(FlowSpec):
         items_unique_ids = list(pd.read_parquet('categories/unique.article_id.parquet')['article_id'])
         self.id_2_user_id = { idx:_ for idx, _ in enumerate(user_unique_ids) }
         self.id_2_item_id = { idx:_ for idx, _ in enumerate(items_unique_ids) }
-        # sets of hypers - we serialize them to a string and pass them to the foreach below
-        self.hypers_sets = [json.dumps(_) for _ in [
-            { 'BATCH_SIZE': 16384 }, #{ 'BATCH_SIZE': 4096 }
-        ]]
+        # sets of hypers
+        # batch size
+        batch_sizes = [ 16384, 4096]
+        # learning rate
+        learning_rates = [0.01, 0.02]
+        grid_search = []
+        for params in itertools.product(batch_sizes, learning_rates):
+            grid_search.append({
+                'BATCH_SIZE': params[0],
+                'LEARNING_RATE': params[1]
+            })
+        # we serialize hypers to a string and pass them to the foreach below
+        self.hypers_sets = [json.dumps(_) for _ in grid_search]
+        # debug
+        print(self.hypers_sets)
         self.next(self.train_model, foreach='hypers_sets')
 
     @environment(vars={
@@ -298,7 +310,7 @@ class myMerlinFlow(FlowSpec):
         item_inputs = mm.InputBlockV2(item_schema,)
         candidate = mm.Encoder(item_inputs, mm.MLPBlock([128, 64]))
         model = mm.TwoTowerModelV2(query, candidate)
-        opt = tf.keras.optimizers.Adagrad(learning_rate=0.01)
+        opt = tf.keras.optimizers.Adagrad(learning_rate=self.hypers['LEARNING_RATE'])
         model.compile(
             optimizer=opt, 
             run_eagerly=False, 
