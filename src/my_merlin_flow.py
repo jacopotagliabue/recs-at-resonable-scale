@@ -256,7 +256,8 @@ class myMerlinFlow(FlowSpec):
                 'LEARNING_RATE': params[1]
             })
         # we serialize hypers to a string and pass them to the foreach below
-        self.hypers_sets = [json.dumps(_) for _ in grid_search]
+        # NOTE: since we are running in "dev mode", we just take the first hypers set
+        self.hypers_sets = [json.dumps(_) for _ in grid_search][:1]
         # debug
         print(self.hypers_sets)
         self.next(self.train_model, foreach='hypers_sets')
@@ -266,7 +267,7 @@ class myMerlinFlow(FlowSpec):
                     'COMET_API_KEY': os.getenv('COMET_API_KEY')
                 })
     @enable_decorator(batch(
-        #gpu=1, 
+        gpu=1, 
         memory=24000,
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
@@ -426,7 +427,6 @@ class myMerlinFlow(FlowSpec):
 
     @environment(vars={'EN_BATCH': os.getenv('EN_BATCH')})
     @enable_decorator(batch(
-        #gpu=1, 
         memory=24000,
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
@@ -459,7 +459,6 @@ class myMerlinFlow(FlowSpec):
                     'COMET_API_KEY': os.getenv('COMET_API_KEY')
                 })
     @enable_decorator(batch(
-        #gpu=1, 
         image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
         flag=os.getenv('EN_BATCH'))
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'})
