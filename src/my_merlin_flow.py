@@ -267,9 +267,9 @@ class myMerlinFlow(FlowSpec):
                     'COMET_API_KEY': os.getenv('COMET_API_KEY')
                 })
     @enable_decorator(batch(
-        gpu=1, 
+        # gpu=1, 
         memory=24000,
-        image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
+        image='public.ecr.aws/outerbounds/merlin-reasonable-scale:22.11-latest'),
         flag=os.getenv('EN_BATCH'))
     # NOTE: updating requests will just suppress annoying warnings
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'}) 
@@ -428,7 +428,7 @@ class myMerlinFlow(FlowSpec):
     @environment(vars={'EN_BATCH': os.getenv('EN_BATCH')})
     @enable_decorator(batch(
         memory=24000,
-        image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
+        image='public.ecr.aws/outerbounds/merlin-reasonable-scale:22.11-latest'),
         flag=os.getenv('EN_BATCH'))
     @magicdir
     @step
@@ -459,7 +459,7 @@ class myMerlinFlow(FlowSpec):
                     'COMET_API_KEY': os.getenv('COMET_API_KEY')
                 })
     @enable_decorator(batch(
-        image='public.ecr.aws/g2i3l1i3/merlin-reasonable-scale'),
+        image='public.ecr.aws/outerbounds/merlin-reasonable-scale:22.11-latest'),
         flag=os.getenv('EN_BATCH'))
     @pip(libraries={'requests': '2.28.1', 'comet-ml': '3.26.0'})
     @magicdir

@@ -3,7 +3,7 @@ Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys
 
 ## Overview
 
-*December 2022*: aside from behavioral testing, the ML pipeline is now completed. Blog post coming soon!
+*February 2023*: aside from behavioral testing, the ML pipeline is now completed. Blog post coming soon!
 
 _This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
@@ -66,11 +66,11 @@ _Adding a Streamlit app for error analysis_
 
 _A note on containers_
 
-At the moment of writing, Merlin does not have an official ECR, so we pulled `nvcr.io/nvidia/merlin/merlin-tensorflow:22.11` and slightly changed the entry point to work with Metaflow / AWS Batch. The `docker` folder contains the relevant files - the current flow uses a public ECR repository we prepared on our AWS when running training in _BATCH_; if you wish to use your own ECR or the repo above becomes unavailable for whatever reason, you can just change the relevant `image` parameter in the flow (note: you need to register for a free NVIDIA account first to be able to pull from nvcr).
+At the moment of writing, Merlin does not have an official ECR, so we pulled `nvcr.io/nvidia/merlin/merlin-tensorflow:22.11` and slightly changed the entry point to work with Metaflow / AWS Batch. The `docker` folder contains the relevant files - the current flow uses a public ECR repository (`public.ecr.aws/outerbounds/merlin-reasonable-scale:22.11-latest`) we prepared on our AWS when running training in _BATCH_; if you wish to use your own ECR or the repo above becomes unavailable for whatever reason, you can just change the relevant `image` parameter in the flow (note: you need to register for a free NVIDIA account first to be able to pull from nvcr).
 
 ## Setup
 
-We recommend using python 3.8 for this project.
+We recommend using python 3.9 for this project.
 
 ### Virtual env
 
