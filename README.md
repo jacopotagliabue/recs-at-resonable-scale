@@ -32,6 +32,7 @@ _If you like this project please add a star on Github here and check out / share
 
 This project builds on our open roadmap for "MLOps at Resonable Scale", automated documentation of pipelines, rounded evaluation for RecSys:
 
+* [NVIDIA Merlin meets the MLOps ecosystem](https://medium.com/nvidia-merlin/nvidia-merlin-meets-the-mlops-ecosystem-building-a-production-ready-recsys-pipeline-on-cloud-1a16c156166b)
 * [CIKM RecSys Evaluation Challenge](https://reclist.io/cikm2022-cup/);
 * [NVIDIA RecSys Summit keynote](https://youtu.be/9rouLchcC0k?t=147) and [slides](/slides/NVIDIA_RECSYS_SUMMIT_JT.pdf);
 * [RecList (project website)](http://reclist.io/);
