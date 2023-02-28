@@ -1,9 +1,9 @@
 # recs-at-resonable-scale
-Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys with Merlin and Metaflow
+Recommendations at "Reasonable Scale": joining dataOps with deep learning recSys with Merlin and Metaflow ([blog](https://medium.com/nvidia-merlin/nvidia-merlin-meets-the-mlops-ecosystem-building-a-production-ready-recsys-pipeline-on-cloud-1a16c156166b))
 
 ## Overview
 
-*February 2023*: aside from behavioral testing, the ML pipeline is now completed. Blog post coming soon!
+*February 2023*: aside from behavioral testing, the ML pipeline is now completed. A [blog post](https://medium.com/nvidia-merlin/nvidia-merlin-meets-the-mlops-ecosystem-building-a-production-ready-recsys-pipeline-on-cloud-1a16c156166b) on the NVIDIA Medium was just published!
 
 _This_ project is a collaboration with the [Outerbounds](https://outerbounds.com/), [NVIDIA Merlin](https://developer.nvidia.com/nvidia-merlin) and [Comet](https://www.comet.com/signup?utm_source=jacopot&utm_medium=referral&utm_campaign=online_jacopot_2022&utm_content=github_recs_resonable_scale) teams, in an effort to release as open source code a realistic data and ML pipeline for cutting edge recommender systems "that just works". Anyone can ~~[cook](https://medias.spotern.com/spots/w640/192/192480-1554811522.jpg)~~ do great ML, not just Big Tech, if you know how to [pick and choose your tools](https://towardsdatascience.com/tagged/mlops-without-much-ops).
 
@@ -24,7 +24,7 @@ At a quick glance, this is what we are building:
 
 ![Recs at reasonable scale](/images/stack.jpg)
 
-For an in-depth explanation of the philosophy behind the approach, please check the companion blog post (forthcoming) or watch our [NVIDIA Summit keynote](https://youtu.be/9rouLchcC0k?t=147).
+For an in-depth explanation of the philosophy behind the approach, please check the companion [blog post](https://medium.com/nvidia-merlin/nvidia-merlin-meets-the-mlops-ecosystem-building-a-production-ready-recsys-pipeline-on-cloud-1a16c156166b) or watch our [NVIDIA Summit keynote](https://youtu.be/9rouLchcC0k?t=147).
 
 _If you like this project please add a star on Github here and check out / share / star the [RecList](https://github.com/jacopotagliabue/reclist) package._
 
