@@ -104,7 +104,7 @@ Inside `src`, create a version of the `local.env` file named only `.env` (do _no
 
 The  original dataset is from the [H&M data challenge](https://www.kaggle.com/competitions/h-and-m-personalized-fashion-recommendations).
 
-* Download the files `articles.csv`, `customers.csv`, `transactions_train.csv` and put them in the `src/data` folder. The `data` folder already contains `images_to_s3.csv`, which is a simple file simulating a mapping betweend IDs and s3 storage for product images. Images are not used in the RecSys pipeline directly, but we plan on using them for debugging in the future (which is why we added the table / sql queries).
+* Download the files `articles.csv`, `customers.csv`, `transactions_train.csv` and put them in the `src/data` folder. The `data` folder contains `images_to_s3.csv`, which is a simple file simulating a mapping betweend IDs and s3 storage for product images (note that the mapping reflects our own bucket, but you should copy over the images to your own cloud storage and change the files accordingly). Images are *not* used in the RecSys pipeline directly, but they can support additional use cases, such as debugging (which is why we added the meta-data in our sql transformations).
 * Run `upload_to_snowflake.py` as a one-off script: the program will dump the dataset to Snowflake, using a typical [modern data stack pattern](https://towardsdatascience.com/the-modern-data-pattern-d34d42216c81). This allows us to use dbt and Metaflow to run a realistic ELT and ML code.
 
 Once you run the script, check your Snowflake for the new tables:
