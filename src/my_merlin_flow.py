@@ -618,7 +618,7 @@ class myMerlinFlow(FlowSpec):
         else:
             print("Caching predictions in DynamoDB")
             import boto3
-            dynamodb = boto3.resource('dynamodb')
+            dynamodb = boto3.resource('dynamodb', region_name='us-west-2')
             table = dynamodb.Table(self.DYNAMO_TABLE)
             # upload some static items as a test
             data = [{'userId': user, 'recs': json.dumps(recs) } for user, recs in self.best_predictions.items()] 
